@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:record/record.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../workspace/presentation/workspace_notifier.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 import 'chat_panel.dart';
@@ -18,27 +20,48 @@ class RecordScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(recordNotifierProvider);
     final notifier = ref.read(recordNotifierProvider.notifier);
-    final isRecording = state.status == RecordStatus.recording;
 
     return Row(
       children: [
         // ── Основной контент ───────────────────────────────────────────────
         Expanded(
-          child: Center(
-            child: SingleChildScrollView(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Кнопка записи ─────────────────────────────────────────
+                  // ── Кнопка записи + пауза ─────────────────────────────────
                   _RecordButton(
-                    isRecording: isRecording,
-                    onTap: notifier.toggleRecording,
+                    status: state.status,
+                    onTap: () => notifier.toggleRecording(),
+                    onPause: state.isActive
+                        ? () => notifier.togglePause()
+                        : null,
                   ),
                   const SizedBox(height: 32),
 
                   // ── Статус ────────────────────────────────────────────────
-                  _RecordStatus(status: state.status),
-                  const SizedBox(height: 48),
+                  _RecordStatusWidget(status: state.status),
+                  const SizedBox(height: 32),
+
+                  // ── Источник звука ────────────────────────────────────────
+                  _AudioSourceToggle(
+                    source: state.audioSource,
+                    onChanged: notifier.setAudioSource,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Выбор устройства (только для микрофона) ───────────────
+                  if (state.audioSource == AudioSource.microphone) ...[
+                    _DeviceSelector(
+                      devices: state.inputDevices,
+                      selected: state.selectedDevice,
+                      onSelect: notifier.selectDevice,
+                      onRefresh: notifier.refreshDevices,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // ── Выбор воркспейса ──────────────────────────────────────
                   _WorkspaceSelector(
@@ -52,8 +75,7 @@ class RecordScreen extends ConsumerWidget {
                   // ── Upload audio ──────────────────────────────────────────
                   _UploadAudioButton(
                     onTap: () => _showUploadModal(context),
-                    isUploading:
-                        state.status == RecordStatus.uploading,
+                    isUploading: state.status == RecordStatus.uploading,
                   ),
 
                   // ── Прогресс загрузки ─────────────────────────────────────
@@ -113,10 +135,15 @@ class RecordScreen extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RecordButton extends StatefulWidget {
-  final bool isRecording;
+  final RecordStatus status;
   final VoidCallback onTap;
+  final VoidCallback? onPause;
 
-  const _RecordButton({required this.isRecording, required this.onTap});
+  const _RecordButton({
+    required this.status,
+    required this.onTap,
+    this.onPause,
+  });
 
   @override
   State<_RecordButton> createState() => _RecordButtonState();
@@ -138,9 +165,10 @@ class _RecordButtonState extends State<_RecordButton>
   @override
   void didUpdateWidget(_RecordButton old) {
     super.didUpdateWidget(old);
-    if (widget.isRecording && !_pingController.isAnimating) {
+    if (widget.status == RecordStatus.recording &&
+        !_pingController.isAnimating) {
       _pingController.repeat();
-    } else if (!widget.isRecording) {
+    } else if (widget.status != RecordStatus.recording) {
       _pingController.stop();
       _pingController.reset();
     }
@@ -154,57 +182,104 @@ class _RecordButtonState extends State<_RecordButton>
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        widget.isRecording ? AppColors.error : AppColors.surfaceElevated;
+    final isRecording = widget.status == RecordStatus.recording;
+    final isPaused = widget.status == RecordStatus.paused;
+    final isActive = isRecording || isPaused;
 
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Ping-кольцо (только при записи)
-          if (widget.isRecording)
-            AnimatedBuilder(
-              animation: _pingController,
-              builder: (_, __) => Container(
-                width: 192 + _pingController.value * 40,
-                height: 192 + _pingController.value * 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.error
-                        .withValues(alpha: 0.4 * (1 - _pingController.value)),
-                    width: 2,
+    final color = isRecording
+        ? AppColors.error
+        : isPaused
+            ? AppColors.accent
+            : AppColors.surfaceElevated;
+
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: widget.onTap,
+          child: SizedBox(
+            width: 240,
+            height: 240,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (isRecording)
+                  AnimatedBuilder(
+                    animation: _pingController,
+                    builder: (_, __) => Container(
+                      width: 192 + _pingController.value * 40,
+                      height: 192 + _pingController.value * 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.error.withValues(
+                              alpha: 0.4 * (1 - _pingController.value)),
+                          width: 2,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          // Основная кнопка
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            width: 192,
-            height: 192,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.5),
-                  blurRadius: 60,
-                  spreadRadius: 10,
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 192,
+                  height: 192,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.5),
+                        blurRadius: 60,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    isActive ? Icons.stop_rounded : Icons.mic_rounded,
+                    size: 80,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ],
             ),
-            child: Icon(
-              widget.isRecording
-                  ? Icons.stop_rounded
-                  : Icons.mic_rounded,
-              size: 80,
-              color: AppColors.textPrimary,
+          ),
+        ),
+        // Кнопка паузы — только когда идёт запись или на паузе
+        if (isActive && widget.onPause != null) ...[
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: widget.onPause,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.surfaceElevated),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPaused
+                        ? Icons.play_arrow_rounded
+                        : Icons.pause_rounded,
+                    color: AppColors.textPrimary,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isPaused ? 'Resume' : 'Pause',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -213,19 +288,22 @@ class _RecordButtonState extends State<_RecordButton>
 // Статус под кнопкой
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _RecordStatus extends StatelessWidget {
+class _RecordStatusWidget extends StatelessWidget {
   final RecordStatus status;
-  const _RecordStatus({required this.status});
+  const _RecordStatusWidget({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final (label, sub) = switch (status) {
-      RecordStatus.recording => ('Recording...', ''),
+      RecordStatus.recording => ('Recording...', 'Tap stop to finish'),
+      RecordStatus.paused    => ('Paused', 'Tap stop to finish & upload'),
       RecordStatus.uploading => ('Uploading...', ''),
       RecordStatus.done      => ('Upload complete', ''),
-      RecordStatus.error     => ('Something went wrong', ''),
+      RecordStatus.error     => ('', ''), // error shown in banner below
       _                      => ('Ready to Record', 'Tap the button to start'),
     };
+
+    if (label.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
@@ -256,7 +334,288 @@ class _RecordStatus extends StatelessWidget {
 // Выбор воркспейса
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _WorkspaceSelector extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Переключатель источника звука
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AudioSourceToggle extends StatelessWidget {
+  final AudioSource source;
+  final void Function(AudioSource) onChanged;
+
+  const _AudioSourceToggle({
+    required this.source,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 360,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'AUDIO SOURCE',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.surfaceElevated),
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              children: [
+                _SourceOption(
+                  label: 'Microphone',
+                  icon: Icons.mic_rounded,
+                  selected: source == AudioSource.microphone,
+                  onTap: () => onChanged(AudioSource.microphone),
+                ),
+                _SourceOption(
+                  label: 'System Audio',
+                  icon: Icons.speaker_rounded,
+                  selected: source == AudioSource.systemAudio,
+                  onTap: () => onChanged(AudioSource.systemAudio),
+                ),
+              ],
+            ),
+          ),
+          if (source == AudioSource.systemAudio)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline_rounded,
+                      size: 13, color: AppColors.accent),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Captures all audio playing on this Mac. '
+                      'Requires "Screen & System Audio Recording" permission.',
+                      style: TextStyle(
+                          color: AppColors.accent, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SourceOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  size: 14,
+                  color: selected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: selected
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Выбор устройства записи
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DeviceSelector extends StatelessWidget {
+  final List<InputDevice> devices;
+  final InputDevice? selected;
+  final void Function(InputDevice?) onSelect;
+  final VoidCallback onRefresh;
+
+  const _DeviceSelector({
+    required this.devices,
+    required this.selected,
+    required this.onSelect,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 360,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'INPUT DEVICE',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: onRefresh,
+                child: const Icon(Icons.refresh_rounded,
+                    color: AppColors.textSecondary, size: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (devices.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 18, vertical: 13),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceElevated),
+              ),
+              child: const Text(
+                'No devices found — grant mic permission first',
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 14),
+              ),
+            )
+          else
+            DropdownButtonHideUnderline(
+              child: DropdownButton<InputDevice?>(
+                value: selected,
+                isExpanded: true,
+                dropdownColor: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.textSecondary, size: 20),
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 15),
+                hint: const Text(
+                  'Default device',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 15),
+                ),
+                items: [
+                  const DropdownMenuItem<InputDevice?>(
+                    value: null,
+                    child: Text(
+                      'Default device',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  ...devices.map(
+                    (d) => DropdownMenuItem<InputDevice?>(
+                      value: d,
+                      child: Text(
+                        d.label,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+                selectedItemBuilder: (_) => [
+                  _deviceItem('Default device',
+                      color: AppColors.textSecondary),
+                  ...devices.map((d) => _deviceItem(d.label)),
+                ],
+                onChanged: onSelect,
+              ),
+            ),
+          if (selected != null &&
+              selected!.label.toLowerCase().contains('blackhole'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline_rounded,
+                      size: 13, color: AppColors.accent),
+                  SizedBox(width: 6),
+                  Text(
+                    'BlackHole detected — system audio will be captured',
+                    style: TextStyle(
+                        color: AppColors.accent, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deviceItem(String label,
+      {Color color = AppColors.textPrimary}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceElevated),
+      ),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 15),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WorkspaceSelector extends ConsumerWidget {
   final String? selectedName;
   final void Function(String id, String name) onSelect;
   final VoidCallback onClear;
@@ -267,8 +626,18 @@ class _WorkspaceSelector extends StatelessWidget {
     required this.onClear,
   });
 
+  void _showCreateWorkspaceDialog(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => _CreateWorkspaceDialog(
+        onCreated: (id, name) => onSelect(id, name),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: 360,
       child: Column(
@@ -294,12 +663,9 @@ class _WorkspaceSelector extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              // Кнопка "создать новый воркспейс"
               _IconSquareButton(
                 icon: Icons.add_rounded,
-                onTap: () {
-                  // TODO: показать диалог создания воркспейса
-                },
+                onTap: () => _showCreateWorkspaceDialog(context, ref),
               ),
             ],
           ),
@@ -309,7 +675,7 @@ class _WorkspaceSelector extends StatelessWidget {
   }
 }
 
-class _WorkspaceDropdown extends StatefulWidget {
+class _WorkspaceDropdown extends ConsumerStatefulWidget {
   final String? selectedName;
   final void Function(String id, String name) onSelect;
   final VoidCallback onClear;
@@ -321,56 +687,115 @@ class _WorkspaceDropdown extends StatefulWidget {
   });
 
   @override
-  State<_WorkspaceDropdown> createState() => _WorkspaceDropdownState();
+  ConsumerState<_WorkspaceDropdown> createState() =>
+      _WorkspaceDropdownState();
 }
 
-class _WorkspaceDropdownState extends State<_WorkspaceDropdown> {
+class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
   bool _open = false;
-
-  // TODO(backend): заменить на реальные данные из WorkspacesNotifier
-  // после реализации GET /workspaces/ (см. MISSING_ENDPOINTS.md п.1)
-  // ignore: unused_field
-  static const _stubWorkspaces = [
-    ('stub-1', 'Personal'),
-    ('stub-2', 'Work'),
-    ('stub-3', 'Projects'),
-  ];
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _open = !_open);
-      },
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceElevated),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.selectedName ?? 'Not selected',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+    final workspacesState = ref.watch(workspacesNotifierProvider);
+    final workspaces = workspacesState.workspaces;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _open = !_open),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.surfaceElevated),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.selectedName ?? 'Not selected',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
+                AnimatedRotation(
+                  turns: _open ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary, size: 20),
+                ),
+              ],
             ),
-            AnimatedRotation(
-              turns: _open ? 0.5 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: const Icon(Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.textSecondary, size: 20),
-            ),
-          ],
+          ),
         ),
-      ),
+        if (_open) ...[
+          const SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.surfaceElevated),
+            ),
+            child: workspacesState.status == WorkspacesStatus.loading
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : workspaces.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: Text(
+                          'No workspaces yet',
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 14),
+                        ),
+                      )
+                    : Column(
+                        children: workspaces.map((ws) {
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              widget.onSelect(ws.workspaceId, ws.name);
+                              setState(() => _open = false);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      ws.name,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ),
+                                  if (widget.selectedName == ws.name)
+                                    const Icon(Icons.check_rounded,
+                                        color: AppColors.accent, size: 16),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -563,6 +988,172 @@ class _ErrorBanner extends StatelessWidget {
                 color: AppColors.error, size: 18),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Диалог создания воркспейса
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CreateWorkspaceDialog extends ConsumerStatefulWidget {
+  final void Function(String id, String name) onCreated;
+  const _CreateWorkspaceDialog({required this.onCreated});
+
+  @override
+  ConsumerState<_CreateWorkspaceDialog> createState() =>
+      _CreateWorkspaceDialogState();
+}
+
+class _CreateWorkspaceDialogState
+    extends ConsumerState<_CreateWorkspaceDialog> {
+  final _nameCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _loading = true);
+    final ws = await ref
+        .read(workspacesNotifierProvider.notifier)
+        .create(_nameCtrl.text.trim());
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (ws != null) {
+      widget.onCreated(ws.workspaceId, ws.name);
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.surfaceElevated),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'New Workspace',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded,
+                        color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _nameCtrl,
+                autofocus: true,
+                onFieldSubmitted: (_) => _submit(),
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Workspace name',
+                  hintStyle:
+                      const TextStyle(color: AppColors.textSecondary),
+                  filled: true,
+                  fillColor: AppColors.surfaceElevated,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Please enter a workspace name';
+                  }
+                  if (v.trim().length < 2) {
+                    return 'Name must be at least 2 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _loading
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                            color: AppColors.surfaceElevated),
+                        foregroundColor: AppColors.textPrimary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        disabledBackgroundColor:
+                            AppColors.surfaceElevated,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.textPrimary,
+                              ),
+                            )
+                          : const Text(
+                              'Create',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

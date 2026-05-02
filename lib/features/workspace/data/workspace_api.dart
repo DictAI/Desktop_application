@@ -7,24 +7,20 @@ final class WorkspaceApi {
   final Dio _dio;
   WorkspaceApi(this._dio);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // ЗАГЛУШКА: эндпоинт GET /workspaces/ отсутствует в backend.
-  // См. MISSING_ENDPOINTS.md — пункт 1.
-  // После реализации эндпоинта в workspace-service — заменить тело метода на:
-  //
-  //   final response = await _dio.get('/workspaces/');
-  //   final list = response.data as List<dynamic>;
-  //   return list
-  //       .map((e) => WorkspaceDto.fromJson(e as Map<String, dynamic>))
-  //       .toList();
-  // ────────────────────────────────────────────────────────────────────────────
-  Future<List<WorkspaceDto>> getWorkspaces() async {
-    // TODO(backend): реализовать GET /workspaces/ в workspace-service
-    // ignore: dead_code
-    throw const StubException(
-      'GET /workspaces/ не реализован в backend. '
-      'См. MISSING_ENDPOINTS.md п.1',
-    );
+  Future<List<WorkspaceDto>> getWorkspaces({int page = 1, int limit = 20}) async {
+    try {
+      final response = await _dio.get(
+        '/workspaces/',
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final list = data['data'] as List<dynamic>;
+      return list
+          .map((e) => WorkspaceDto.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
   }
 
   Future<WorkspaceDto> createWorkspace(String name) async {
@@ -48,11 +44,31 @@ final class WorkspaceApi {
     }
   }
 
+  Future<WorkspaceDto> updateWorkspace(String workspaceId, String name) async {
+    try {
+      final response = await _dio.put(
+        '/workspaces/$workspaceId',
+        data: {'name': name},
+      );
+      return WorkspaceDto.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  Future<void> deleteWorkspace(String workspaceId) async {
+    try {
+      await _dio.delete('/workspaces/$workspaceId');
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   Future<List<ParticipantDto>> getParticipants(String workspaceId) async {
     try {
       final response =
           await _dio.get('/workspaces/$workspaceId/participants');
-      final list = response.data as List<dynamic>;
+      final list = (response.data as List<dynamic>?) ?? [];
       return list
           .map((e) => ParticipantDto.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -77,19 +93,34 @@ final class WorkspaceApi {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // ЗАГЛУШКА: эндпоинт DELETE /workspaces/:workspace_id отсутствует в backend.
-  // См. MISSING_ENDPOINTS.md — пункт 4.
-  // После реализации — заменить тело на:
-  //
-  //   await _dio.delete('/workspaces/$workspaceId');
-  // ────────────────────────────────────────────────────────────────────────────
-  Future<void> deleteWorkspace(String workspaceId) async {
-    // TODO(backend): реализовать DELETE /workspaces/:workspace_id в workspace-service
-    throw const StubException(
-      'DELETE /workspaces/:id не реализован в backend. '
-      'См. MISSING_ENDPOINTS.md п.4',
-    );
+  Future<ParticipantDto> updateParticipant({
+    required String workspaceId,
+    required String participantId,
+    required String name,
+    required String email,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '/workspaces/$workspaceId/participants/$participantId',
+        data: {'name': name, 'email': email},
+      );
+      return ParticipantDto.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  Future<void> deleteParticipant({
+    required String workspaceId,
+    required String participantId,
+  }) async {
+    try {
+      await _dio.delete(
+        '/workspaces/$workspaceId/participants/$participantId',
+      );
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
   }
 
   AppException _mapError(DioException e) => switch (e.response?.statusCode) {
@@ -104,4 +135,3 @@ final class WorkspaceApi {
           ),
       };
 }
-

@@ -48,12 +48,6 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
     try {
       final list = await _api.getWorkspaces();
       state = state.copyWith(status: WorkspacesStatus.loaded, workspaces: list);
-    } on StubException catch (e) {
-      state = state.copyWith(
-        status: WorkspacesStatus.error,
-        errorMessage: e.message,
-        isStubError: true,
-      );
     } on AppException catch (e) {
       state = state.copyWith(
         status: WorkspacesStatus.error,
@@ -90,13 +84,6 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
             .toList(),
       );
       return true;
-    } on StubException catch (e) {
-      state = state.copyWith(
-        status: WorkspacesStatus.error,
-        errorMessage: e.message,
-        isStubError: true,
-      );
-      return false;
     } on AppException catch (e) {
       state = state.copyWith(
         status: WorkspacesStatus.error,
@@ -204,6 +191,59 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
         isAddingParticipant: false,
         errorMessage: e.message,
       );
+      return false;
+    }
+  }
+
+  Future<bool> updateParticipant({
+    required String participantId,
+    required String name,
+    required String email,
+  }) async {
+    try {
+      final updated = await _api.updateParticipant(
+        workspaceId: workspaceId,
+        participantId: participantId,
+        name: name,
+        email: email,
+      );
+      state = state.copyWith(
+        participants: state.participants
+            .map((p) => p.participantId == participantId ? updated : p)
+            .toList(),
+      );
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
+      return false;
+    }
+  }
+
+  Future<bool> deleteParticipant(String participantId) async {
+    try {
+      await _api.deleteParticipant(
+        workspaceId: workspaceId,
+        participantId: participantId,
+      );
+      state = state.copyWith(
+        participants: state.participants
+            .where((p) => p.participantId != participantId)
+            .toList(),
+      );
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
+      return false;
+    }
+  }
+
+  Future<bool> updateWorkspace(String name) async {
+    try {
+      final updated = await _api.updateWorkspace(workspaceId, name);
+      state = state.copyWith(workspace: updated);
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
       return false;
     }
   }

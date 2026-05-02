@@ -7,10 +7,12 @@ import '../../features/workspace/presentation/workspaces_screen.dart';
 import '../../features/workspace/presentation/workspace_detail_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
 import '../../shared/providers/providers.dart';
+import 'auth_listenable.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/record',
+    refreshListenable: AuthListenable(ref),
     redirect: (context, state) async {
       final storage = ref.read(secureStorageProvider);
       final hasToken = await storage.hasToken();
@@ -30,23 +32,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/record',
-            builder: (_, __) => const RecordScreen(),
+            pageBuilder: (_, __) => const NoTransitionPage(child: RecordScreen()),
           ),
           GoRoute(
             path: '/workspaces',
-            builder: (_, __) => const WorkspacesScreen(),
+            pageBuilder: (_, __) => const NoTransitionPage(child: WorkspacesScreen()),
             routes: [
               GoRoute(
                 path: ':workspaceId',
-                builder: (_, state) => WorkspaceDetailScreen(
-                  workspaceId: state.pathParameters['workspaceId']!,
+                pageBuilder: (_, state) => NoTransitionPage(
+                  child: WorkspaceDetailScreen(
+                    workspaceId: state.pathParameters['workspaceId']!,
+                  ),
                 ),
               ),
             ],
           ),
           GoRoute(
             path: '/results',
-            builder: (_, __) => const ResultsScreen(),
+            pageBuilder: (_, __) => const NoTransitionPage(child: ResultsScreen()),
           ),
         ],
       ),

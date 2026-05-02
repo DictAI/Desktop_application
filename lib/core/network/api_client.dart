@@ -15,9 +15,11 @@ Dio createDio({required String baseUrl, required SecureStorage storage}) {
   dio.interceptors.addAll([
     AuthInterceptor(storage),
     LogInterceptor(
-      requestBody: false,
-      responseBody: false,
-      logPrint: (_) {}, // в prod отключаем вывод в консоль
+      requestBody: true,
+      responseBody: true,
+      error: true,
+      // ignore: avoid_print
+      logPrint: (o) => print('[DIO] $o'),
     ),
   ]);
 

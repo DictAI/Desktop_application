@@ -51,7 +51,6 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
   }
 
   Future<void> load({
-    String? workspaceId,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -61,9 +60,8 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
     );
     try {
       final list = await _api.getResults(
-        workspaceId: workspaceId,
-        from: from,
-        to: to,
+        startDate: from,
+        endDate: to,
       );
       state = state.copyWith(
         status: ResultsStatus.loaded,
