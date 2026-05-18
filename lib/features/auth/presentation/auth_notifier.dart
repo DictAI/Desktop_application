@@ -42,6 +42,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         LoginRequest(email: email.trim(), password: password),
       );
       await _storage.saveToken(response.token);
+      await _storage.saveEmail(email.trim());
       state = state.copyWith(status: AuthStatus.success);
       onSuccess();
     } on AppException catch (e) {

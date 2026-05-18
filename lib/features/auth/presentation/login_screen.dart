@@ -119,7 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      'Voice AI',
+                      'Dict AI',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 22,
@@ -341,42 +341,43 @@ class _RegisterForm extends StatelessWidget {
   Widget build(BuildContext context) {
     return Form(
       key: formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _AppTextField(
-            controller: emailCtrl,
-            label: 'Email',
-            hint: 'you@example.com',
-            keyboardType: TextInputType.emailAddress,
-            validator: _validateEmail,
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 14),
-          _AppTextField(
-            controller: passwordCtrl,
-            label: 'Password',
-            hint: 'Min. 8 characters',
-            obscureText: !passwordVisible,
-            validator: _validatePassword,
-            textInputAction: TextInputAction.next,
-            suffixIcon: IconButton(
-              icon: Icon(
-                passwordVisible ? Icons.visibility_off : Icons.visibility,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
-              onPressed: onTogglePassword,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _AppTextField(
+              controller: emailCtrl,
+              label: 'Email',
+              hint: 'you@example.com',
+              keyboardType: TextInputType.emailAddress,
+              validator: _validateEmail,
+              textInputAction: TextInputAction.next,
             ),
-          ),
-          const SizedBox(height: 14),
-          _AppTextField(
-            controller: confirmCtrl,
-            label: 'Confirm Password',
-            hint: '••••••••',
-            obscureText: !confirmVisible,
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Please confirm your password';
+            const SizedBox(height: 14),
+            _AppTextField(
+              controller: passwordCtrl,
+              label: 'Password',
+              hint: 'Min. 8 characters',
+              obscureText: !passwordVisible,
+              validator: _validatePassword,
+              textInputAction: TextInputAction.next,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  passwordVisible ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+                onPressed: onTogglePassword,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _AppTextField(
+              controller: confirmCtrl,
+              label: 'Confirm Password',
+              hint: '••••••••',
+              obscureText: !confirmVisible,
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Please confirm your password';
               if (v != passwordCtrl.text) return 'Passwords do not match';
               return null;
             },
@@ -392,6 +393,7 @@ class _RegisterForm extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

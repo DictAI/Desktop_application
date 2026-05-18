@@ -25,7 +25,7 @@ class AudioIngestApi {
       });
 
       final response = await _dio.post<Map<String, dynamic>>(
-        '/audio/upload',
+        '/ingest/audio/upload',
         data: formData,
         onSendProgress: onProgress,
       );

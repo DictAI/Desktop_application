@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/results_api.dart';
 import '../data/dto/result_dto.dart';
 import '../../../core/error/app_exception.dart';
@@ -51,7 +52,6 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
   }
 
   Future<void> load({
-    String? workspaceId,
     DateTime? from,
     DateTime? to,
   }) async {
@@ -61,9 +61,8 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
     );
     try {
       final list = await _api.getResults(
-        workspaceId: workspaceId,
-        from: from,
-        to: to,
+        startDate: from,
+        endDate: to,
       );
       state = state.copyWith(
         status: ResultsStatus.loaded,
@@ -137,7 +136,7 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
     state = state.copyWith(downloadingPdf: map);
   }
 
-  /// Сохраняет байты во временный файл Downloads / Desktop.
+  /// Сохраняет байты во временный файл Downloads и открывает его.
   Future<void> _saveBytes(List<int> bytes, String fileName) async {
     final dir = Platform.isWindows
         ? '${Platform.environment['USERPROFILE']}\\Downloads'
@@ -146,6 +145,10 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
             : '/tmp';
     final file = File('$dir/$fileName');
     await file.writeAsBytes(bytes);
+    final uri = Uri.file(file.path);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 
   void clearError() => state = state.copyWith(

@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required to record meetings.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Screen capture access is required to record system audio from meetings.</string>
 </dict>
 </plist>

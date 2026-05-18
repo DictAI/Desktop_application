@@ -1,5 +1,5 @@
-name: neicro_dicat_ai
-description: Neicro Dicat AI — Flutter Desktop client for meeting transcription and analysis.
+name: dict_ai
+description: Dict AI — AI-powered meeting recording, transcription and analysis.
 publish_to: none
 version: 1.0.0+1
 
@@ -24,8 +24,18 @@ dependencies:
   # Secure storage (JWT persistence)
   flutter_secure_storage: ^9.0.0
 
+  # Local storage fallback for macOS (no Keychain signing required)
+  shared_preferences: ^2.2.3
+
   # File picker (audio upload on Desktop)
   file_picker: ^8.0.3
+
+  # Microphone recording
+  record: ^5.1.2
+
+  # Temporary directory for recorded files
+  path_provider: ^2.1.4
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +43,9 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   build_runner: ^2.4.9
   riverpod_generator: ^2.4.0
+
+dependency_overrides:
+  record_linux: ^1.2.1
 
 flutter:
   uses-material-design: true

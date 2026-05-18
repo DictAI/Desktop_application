@@ -75,8 +75,7 @@ class ResultsScreen extends ConsumerWidget {
           Expanded(
             child: switch (state.status) {
               ResultsStatus.loading => const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.accent),
+                  child: CircularProgressIndicator(color: AppColors.accent),
                 ),
               ResultsStatus.error when state.isStubError =>
                 _StubPlaceholder(onRetry: notifier.load),
@@ -141,8 +140,7 @@ class _ResultsList extends StatelessWidget {
         result: results[i],
         isDownloading: downloadingPdf[results[i].audioId] ?? false,
         onDownloadSummary: () => onDownloadSummary(results[i].audioId),
-        onDownloadTranscript: () =>
-            onDownloadTranscript(results[i].audioId),
+        onDownloadTranscript: () => onDownloadTranscript(results[i].audioId),
         onDelete: () => onDelete(results[i].audioId),
       ),
     );
@@ -169,6 +167,9 @@ class _ResultCard extends StatelessWidget {
     final dateStr = result.createdAt != null
         ? _formatDate(result.createdAt!)
         : 'Date unknown';
+    final workspaceLabel = result.workspaceName?.isNotEmpty == true
+        ? result.workspaceName!
+        : 'Workspace ${result.workspaceId.substring(0, 12)}…';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -241,12 +242,7 @@ class _ResultCard extends StatelessWidget {
           // ── Workspace ───────────────────────────────────────────────
           _TagRow(
             label: 'Workspace',
-            value: result.workspaceId.substring(0, 12) + '…',
-          ),
-          const SizedBox(height: 4),
-          _TagRow(
-            label: 'Result ID',
-            value: result.resultId.substring(0, 12) + '…',
+            value: workspaceLabel,
           ),
           const SizedBox(height: 16),
 
@@ -274,7 +270,7 @@ class _ResultCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime dt) {
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${pad(dt.month)}-${pad(dt.day)} '
         '${pad(dt.hour)}:${pad(dt.minute)}';
   }
@@ -302,7 +298,6 @@ class _TagRow extends StatelessWidget {
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 12,
-            fontFamily: 'monospace',
           ),
         ),
       ],
@@ -328,8 +323,7 @@ class _PdfButton extends StatelessWidget {
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.surfaceElevated,
           borderRadius: BorderRadius.circular(10),
@@ -487,8 +481,8 @@ class _ErrorState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 14),
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
@@ -534,16 +528,13 @@ class _InfoBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            isStub
-                ? Icons.construction_rounded
-                : Icons.error_outline_rounded,
+            isStub ? Icons.construction_rounded : Icons.error_outline_rounded,
             color: color,
             size: 18,
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(message,
-                style: TextStyle(color: color, fontSize: 13)),
+            child: Text(message, style: TextStyle(color: color, fontSize: 13)),
           ),
           GestureDetector(
             onTap: onDismiss,

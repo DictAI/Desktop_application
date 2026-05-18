@@ -6,55 +6,47 @@ final class ResultsApi {
   final Dio _dio;
   ResultsApi(this._dio);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // ЗАГЛУШКА: эндпоинт GET /meetings/results отсутствует в backend.
-  // См. MISSING_ENDPOINTS.md — пункт 2.
-  //
-  // После реализации в results-service — заменить тело метода на:
-  //
-  //   final queryParams = <String, dynamic>{};
-  //   if (workspaceId != null) queryParams['workspace_id'] = workspaceId;
-  //   if (from != null) queryParams['from'] = from.toIso8601String();
-  //   if (to != null)   queryParams['to']   = to.toIso8601String();
-  //
-  //   final response = await _dio.get(
-  //     '/meetings/results',
-  //     queryParameters: queryParams,
-  //   );
-  //   final list = response.data as List<dynamic>;
-  //   return list
-  //       .map((e) => ResultDto.fromJson(e as Map<String, dynamic>))
-  //       .toList();
-  // ────────────────────────────────────────────────────────────────────────────
   Future<List<ResultDto>> getResults({
-    String? workspaceId,
-    DateTime? from,
-    DateTime? to,
+    DateTime? startDate,
+    DateTime? endDate,
+    int page = 1,
+    int limit = 20,
   }) async {
-    // TODO(backend): реализовать GET /meetings/results в results-service
-    throw const StubException(
-      'GET /meetings/results не реализован в backend. '
-      'См. MISSING_ENDPOINTS.md п.2',
-    );
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+      };
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toUtc().toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toUtc().toIso8601String();
+      }
+
+      final response = await _dio.get(
+        '/meetings/results',
+        queryParameters: queryParams,
+      );
+      final data = response.data as Map<String, dynamic>;
+      final list = data['data'] as List<dynamic>;
+      return list
+          .map((e) => ResultDto.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // ЗАГЛУШКА: эндпоинт DELETE /meetings/results/:audio_id отсутствует в backend.
-  // См. MISSING_ENDPOINTS.md — пункт 3.
-  //
-  // После реализации — заменить тело на:
-  //
-  //   await _dio.delete('/meetings/results/$audioId');
-  // ────────────────────────────────────────────────────────────────────────────
   Future<void> deleteResult(String audioId) async {
-    // TODO(backend): реализовать DELETE /meetings/results/:audio_id в results-service
-    throw const StubException(
-      'DELETE /meetings/results/:audio_id не реализован в backend. '
-      'См. MISSING_ENDPOINTS.md п.3',
-    );
+    try {
+      await _dio.delete('/meetings/results/$audioId');
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
   }
 
-  /// Скачать PDF с summary. Эндпоинт существует в backend.
+  /// Скачать PDF с summary.
   Future<List<int>> getSummaryPdf(String audioId) async {
     try {
       final response = await _dio.get<List<int>>(
@@ -67,7 +59,7 @@ final class ResultsApi {
     }
   }
 
-  /// Скачать PDF с транскриптом. Эндпоинт существует в backend.
+  /// Скачать PDF с транскриптом.
   Future<List<int>> getTranscriptPdf(String audioId) async {
     try {
       final response = await _dio.get<List<int>>(
@@ -88,4 +80,3 @@ final class ResultsApi {
           ),
       };
 }
-
