@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
+import 'anonymous_record_notifier.dart';
+import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 import 'chat_panel.dart';
@@ -45,12 +49,14 @@ class RecordScreen extends ConsumerWidget {
                   _RecordStatusWidget(status: state.status),
                   const SizedBox(height: 32),
 
-                  // ── Источник звука ────────────────────────────────────────
-                  _AudioSourceToggle(
-                    source: state.audioSource,
-                    onChanged: notifier.setAudioSource,
-                  ),
-                  const SizedBox(height: 24),
+                  // ── Источник звука (только не-Linux) ─────────────────────
+                  if (!(!kIsWeb && Platform.isLinux)) ...[
+                    _AudioSourceToggle(
+                      source: state.audioSource,
+                      onChanged: notifier.setAudioSource,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // ── Выбор устройства (только для микрофона) ───────────────
                   if (state.audioSource == AudioSource.microphone) ...[
@@ -70,7 +76,13 @@ class RecordScreen extends ConsumerWidget {
                         notifier.selectWorkspace(id, name),
                     onClear: notifier.clearWorkspace,
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
+
+                  // ── Анонимная запись ──────────────────────────────────────
+                  _AnonymousRecordButton(
+                    onTap: () => _handleAnonymousRecord(context, ref),
+                  ),
+                  const SizedBox(height: 20),
 
                   // ── Upload audio ──────────────────────────────────────────
                   _UploadAudioButton(
@@ -126,6 +138,30 @@ class RecordScreen extends ConsumerWidget {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.7),
       builder: (_) => const UploadModal(),
+    );
+  }
+
+  Future<void> _handleAnonymousRecord(BuildContext context, WidgetRef ref) async {
+    final anonNotifier = ref.read(anonRecordNotifierProvider.notifier);
+    final anonState = ref.read(anonRecordNotifierProvider);
+
+    // If already in a modal flow — just re-open the modal
+    if (anonState.status != AnonStatus.idle && anonState.status != AnonStatus.error) {
+      _showLabelSpeakersModal(context);
+      return;
+    }
+
+    // Start recording, then open modal (modal shows recording state with Stop button)
+    await anonNotifier.startRecording();
+    if (context.mounted) _showLabelSpeakersModal(context);
+  }
+
+  void _showLabelSpeakersModal(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => const LabelSpeakersModal(),
     );
   }
 }
@@ -398,7 +434,7 @@ class _AudioSourceToggle extends StatelessWidget {
                   SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'Captures all audio playing on this Mac. '
+                      'Captures all system audio. '
                       'Requires "Screen & System Audio Recording" permission.',
                       style: TextStyle(
                           color: AppColors.accent, fontSize: 12),
@@ -573,7 +609,8 @@ class _DeviceSelector extends StatelessWidget {
               ),
             ),
           if (selected != null &&
-              selected!.label.toLowerCase().contains('blackhole'))
+              selected!.label.toLowerCase().contains('blackhole') &&
+              !(!kIsWeb && Platform.isLinux))
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(
@@ -1154,6 +1191,106 @@ class _CreateWorkspaceDialogState
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Кнопка анонимной записи
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AnonymousRecordButton extends ConsumerWidget {
+  final VoidCallback onTap;
+
+  const _AnonymousRecordButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final anonState = ref.watch(anonRecordNotifierProvider);
+    final isRecording = anonState.status == AnonStatus.recording;
+
+    return SizedBox(
+      width: 360,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: AppColors.surfaceElevated,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'or',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: AppColors.surfaceElevated,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                color: isRecording
+                    ? AppColors.error.withValues(alpha: 0.12)
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isRecording
+                      ? AppColors.error.withValues(alpha: 0.5)
+                      : AppColors.surfaceElevated,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isRecording
+                        ? Icons.stop_circle_outlined
+                        : Icons.bolt_rounded,
+                    size: 16,
+                    color: isRecording
+                        ? AppColors.error
+                        : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isRecording
+                        ? 'Stop & Label Speakers'
+                        : 'Record without workspace',
+                    style: TextStyle(
+                      color: isRecording
+                          ? AppColors.error
+                          : AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (!isRecording) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded,
+                        size: 14, color: AppColors.textSecondary),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

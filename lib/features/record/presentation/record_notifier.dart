@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -159,7 +160,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
       state = state.copyWith(
         status: RecordStatus.error,
         errorMessage: 'Microphone permission denied.\n'
-            'Go to System Settings → Privacy & Security → Microphone and enable the app.',
+            'Please grant microphone access in your system settings.',
       );
       return;
     }
@@ -170,12 +171,14 @@ class RecordNotifier extends StateNotifier<RecordState> {
     }
 
     final dir = await getTemporaryDirectory();
+    final isLinux = !kIsWeb && Platform.isLinux;
+    final ext = isLinux ? 'ogg' : 'm4a';
     final path =
-        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await _recorder.start(
       RecordConfig(
-        encoder: AudioEncoder.aacLc,
+        encoder: isLinux ? AudioEncoder.opus : AudioEncoder.aacLc,
         bitRate: 128000,
         sampleRate: 44100,
         device: state.selectedDevice,
@@ -197,7 +200,6 @@ class RecordNotifier extends StateNotifier<RecordState> {
       );
       return;
     }
-
     try {
       _sysAudioPath = await _sysAudio.startRecording();
       state = state.copyWith(status: RecordStatus.recording);
@@ -242,7 +244,6 @@ class RecordNotifier extends StateNotifier<RecordState> {
     // Use selected workspace or fall back to user email
     final workspaceId = state.selectedWorkspaceId;
     if (workspaceId == null || workspaceId.isEmpty) {
-      final email = await _storage.getEmail() ?? '';
       state = state.copyWith(
         status: RecordStatus.error,
         errorMessage: 'No workspace selected. Please select or create a workspace first.',
