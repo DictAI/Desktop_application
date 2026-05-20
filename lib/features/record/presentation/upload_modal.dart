@@ -3,12 +3,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import 'anonymous_record_notifier.dart';
+import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 
-/// React-аналог: UploadModal.tsx
-/// Drag-and-drop в Desktop-Flutter реализован через DragTarget.
 class UploadModal extends ConsumerStatefulWidget {
-  const UploadModal({super.key});
+  final bool anonymous;
+  const UploadModal({super.key, this.anonymous = false});
 
   @override
   ConsumerState<UploadModal> createState() => _UploadModalState();
@@ -30,8 +31,19 @@ class _UploadModalState extends ConsumerState<UploadModal> {
 
   void _upload() {
     if (_selectedFile == null) return;
-    ref.read(recordNotifierProvider.notifier).uploadFile(_selectedFile!);
-    Navigator.of(context).pop();
+    if (widget.anonymous) {
+      ref.read(anonRecordNotifierProvider.notifier).uploadPickedFile(_selectedFile!);
+      Navigator.of(context).pop();
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withValues(alpha: 0.7),
+        builder: (_) => const LabelSpeakersModal(),
+      );
+    } else {
+      ref.read(recordNotifierProvider.notifier).uploadFile(_selectedFile!);
+      Navigator.of(context).pop();
+    }
   }
 
   String _formatSize(int bytes) {

@@ -69,7 +69,7 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
 
   // ── Recording ─────────────────────────────────────────────────────────────
 
-  Future<void> startRecording() async {
+  Future<void> startRecording({InputDevice? device}) async {
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
       state = state.copyWith(
@@ -91,6 +91,7 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
         encoder: isLinux ? AudioEncoder.opus : AudioEncoder.aacLc,
         bitRate: 128000,
         sampleRate: 44100,
+        device: device,
       ),
       path: _recordingPath!,
     );
@@ -112,6 +113,8 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
 
     await _uploadFile(File(path));
   }
+
+  Future<void> uploadPickedFile(File file) => _uploadFile(file);
 
   Future<void> _uploadFile(File file) async {
     state = state.copyWith(

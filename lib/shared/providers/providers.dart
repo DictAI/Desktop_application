@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/secure_storage.dart';
@@ -16,12 +17,28 @@ final secureStorageProvider = Provider<SecureStorage>((ref) {
   return const SecureStorage();
 });
 
+// ── Session notifier — fires when token is deleted externally (401) ───────────
+
+final sessionNotifierProvider = ChangeNotifierProvider<_SessionNotifier>(
+  (ref) => _SessionNotifier(),
+);
+
+class _SessionNotifier extends ChangeNotifier {
+  void invalidate() => notifyListeners();
+}
+
 // ── Dio ──────────────────────────────────────────────────────────────────────
 
 final dioProvider = Provider<Dio>((ref) {
+  final storage = ref.read(secureStorageProvider);
+  final session = ref.read(sessionNotifierProvider);
   return createDio(
     baseUrl: 'http://localhost:8000',
-    storage: ref.read(secureStorageProvider),
+    storage: storage,
+    onUnauthorized: () async {
+      await storage.deleteToken();
+      session.invalidate();
+    },
   );
 });
 

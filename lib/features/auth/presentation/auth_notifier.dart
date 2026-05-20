@@ -76,6 +76,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthState();
   }
 
+  // Called by AuthInterceptor on 401 — token already deleted, just notify router.
+  void sessionExpired() {
+    state = const AuthState();
+  }
+
   void clearError() {
     state = state.copyWith(status: AuthStatus.idle, errorMessage: null);
   }

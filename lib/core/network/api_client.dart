@@ -2,7 +2,11 @@ import 'package:dio/dio.dart';
 import 'auth_interceptor.dart';
 import '../storage/secure_storage.dart';
 
-Dio createDio({required String baseUrl, required SecureStorage storage}) {
+Dio createDio({
+  required String baseUrl,
+  required SecureStorage storage,
+  Future<void> Function()? onUnauthorized,
+}) {
   final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
@@ -13,7 +17,7 @@ Dio createDio({required String baseUrl, required SecureStorage storage}) {
   );
 
   dio.interceptors.addAll([
-    AuthInterceptor(storage),
+    AuthInterceptor(storage, onUnauthorized: onUnauthorized),
     LogInterceptor(
       requestBody: true,
       responseBody: true,

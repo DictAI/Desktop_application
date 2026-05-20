@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../../core/error/app_exception.dart';
-import '../../../core/storage/secure_storage.dart';
 import '../../../shared/providers/providers.dart';
 import '../data/audio_ingest_api.dart';
 import '../data/system_audio_service.dart';
@@ -13,11 +12,9 @@ import '../data/system_audio_service.dart';
 
 enum RecordStatus { idle, recording, paused, uploading, done, error }
 
-enum AudioSource { microphone, systemAudio, systemAndMicrophone }
-
 class RecordState {
   final RecordStatus status;
-  final AudioSource audioSource;
+  final bool captureSystemAudio;
   final String? selectedWorkspaceId;
   final String? selectedWorkspaceName;
   final String? uploadedAudioId;
@@ -28,7 +25,7 @@ class RecordState {
 
   const RecordState({
     this.status = RecordStatus.idle,
-    this.audioSource = AudioSource.microphone,
+    this.captureSystemAudio = false,
     this.selectedWorkspaceId,
     this.selectedWorkspaceName,
     this.uploadedAudioId,
@@ -45,7 +42,7 @@ class RecordState {
 
   RecordState copyWith({
     RecordStatus? status,
-    AudioSource? audioSource,
+    bool? captureSystemAudio,
     String? selectedWorkspaceId,
     String? selectedWorkspaceName,
     String? uploadedAudioId,
@@ -57,7 +54,7 @@ class RecordState {
   }) =>
       RecordState(
         status: status ?? this.status,
-        audioSource: audioSource ?? this.audioSource,
+        captureSystemAudio: captureSystemAudio ?? this.captureSystemAudio,
         selectedWorkspaceId: selectedWorkspaceId ?? this.selectedWorkspaceId,
         selectedWorkspaceName:
             selectedWorkspaceName ?? this.selectedWorkspaceName,
@@ -74,14 +71,13 @@ class RecordState {
 
 class RecordNotifier extends StateNotifier<RecordState> {
   final AudioIngestApi _api;
-  final SecureStorage _storage;
   final AudioRecorder _recorder = AudioRecorder();
   final SystemAudioService _sysAudio = SystemAudioService();
 
   String? _sysAudioPath;
   String? _micAudioPath;
 
-  RecordNotifier(this._api, this._storage) : super(const RecordState()) {
+  RecordNotifier(this._api) : super(const RecordState()) {
     _loadDevices();
   }
 
@@ -101,8 +97,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
   // ── Source / Workspace ────────────────────────────────────────────────────
 
-  void setAudioSource(AudioSource source) =>
-      state = state.copyWith(audioSource: source);
+  void setCaptureSystemAudio(bool value) =>
+      state = state.copyWith(captureSystemAudio: value);
 
   void selectWorkspace(String id, String name) => state =
       state.copyWith(selectedWorkspaceId: id, selectedWorkspaceName: name);
@@ -110,7 +106,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
   void clearWorkspace() => state = RecordState(
         inputDevices: state.inputDevices,
         selectedDevice: state.selectedDevice,
-        audioSource: state.audioSource,
+        captureSystemAudio: state.captureSystemAudio,
       );
 
   // ── Record controls ───────────────────────────────────────────────────────
@@ -127,21 +123,15 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
   Future<void> togglePause() async {
     if (state.status == RecordStatus.recording) {
-      if (state.audioSource == AudioSource.microphone) {
-        await _recorder.pause();
-      }
-      // system audio / system+mic pause not supported via SCStream — just mark state
+      await _recorder.pause();
       state = state.copyWith(status: RecordStatus.paused);
     } else if (state.status == RecordStatus.paused) {
-      if (state.audioSource == AudioSource.microphone) {
-        await _recorder.resume();
-      }
+      await _recorder.resume();
       state = state.copyWith(status: RecordStatus.recording);
     }
   }
 
   Future<void> _startRecording() async {
-    // Check workspace — use email as fallback
     if (state.selectedWorkspaceId == null ||
         state.selectedWorkspaceId!.isEmpty) {
       state = state.copyWith(
@@ -152,10 +142,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
       return;
     }
 
-    if (state.audioSource == AudioSource.systemAudio) {
-      await _startSystemAudio();
-    } else if (state.audioSource == AudioSource.systemAndMicrophone) {
-      await _startSystemAndMicrophone();
+    if (state.captureSystemAudio && !Platform.isLinux) {
+      await _startMicAndSystem();
     } else {
       await _startMicrophone();
     }
@@ -166,8 +154,10 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (!hasPermission) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'Microphone permission denied.\n'
-            'Go to System Settings → Privacy & Security → Microphone and enable the app.',
+        errorMessage: Platform.isLinux
+            ? 'Microphone permission denied. Check your system audio settings.'
+            : 'Microphone permission denied.\n'
+                'Go to System Settings → Privacy & Security → Microphone and enable the app.',
       );
       return;
     }
@@ -194,29 +184,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
     state = state.copyWith(status: RecordStatus.recording);
   }
 
-  Future<void> _startSystemAudio() async {
-    final granted = await _sysAudio.requestPermission();
-    if (!granted) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Screen & System Audio Recording permission denied.\n'
-            'Go to System Settings → Privacy & Security → Screen & System Audio Recording.',
-      );
-      return;
-    }
-
-    try {
-      _sysAudioPath = await _sysAudio.startRecording(mode: 'system');
-      state = state.copyWith(status: RecordStatus.recording);
-    } on Exception catch (e) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Failed to start system audio capture: $e',
-      );
-    }
-  }
-
-  Future<void> _startSystemAndMicrophone() async {
+  Future<void> _startMicAndSystem() async {
     final micGranted = await _recorder.hasPermission();
     if (!micGranted) {
       state = state.copyWith(
@@ -260,9 +228,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
       );
       state = state.copyWith(status: RecordStatus.recording);
     } on Exception catch (e) {
-      try {
-        await _sysAudio.stopRecording();
-      } catch (_) {}
+      try { await _sysAudio.stopRecording(); } catch (_) {}
       _sysAudioPath = null;
       _micAudioPath = null;
       state = state.copyWith(
@@ -275,25 +241,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
   Future<void> _stopAndUpload() async {
     String? path;
 
-    if (state.audioSource == AudioSource.systemAudio) {
-      try {
-        await _sysAudio.stopRecording();
-        path = _sysAudioPath;
-        _sysAudioPath = null;
-      } on PlatformException catch (e) {
-        state = state.copyWith(
-          status: RecordStatus.error,
-          errorMessage: e.message ?? 'Failed to stop system audio capture.',
-        );
-        return;
-      } on Exception catch (e) {
-        state = state.copyWith(
-          status: RecordStatus.error,
-          errorMessage: 'Failed to stop system audio capture: $e',
-        );
-        return;
-      }
-    } else if (state.audioSource == AudioSource.systemAndMicrophone) {
+    if (state.captureSystemAudio && !Platform.isLinux) {
       final systemPath = _sysAudioPath;
       final micFallbackPath = _micAudioPath;
       Object? systemStopError;
@@ -322,7 +270,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
         } on Exception catch (e) {
           state = state.copyWith(
             status: RecordStatus.error,
-            errorMessage: 'Failed to mix system and microphone audio: $e',
+            errorMessage: 'Failed to mix audio: $e',
           );
           return;
         }
@@ -355,9 +303,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (!file.existsSync()) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'No audio was captured. Make sure Dict AI is allowed in\n'
-            'System Settings → Privacy & Security → Screen & System Audio Recording,\n'
-            'then fully quit and relaunch the app.',
+        errorMessage: 'No audio was captured.',
       );
       return;
     }
@@ -366,15 +312,11 @@ class RecordNotifier extends StateNotifier<RecordState> {
   }
 
   Future<void> uploadFile(File file) async {
-    // Use selected workspace or fall back to user email
     final workspaceId = state.selectedWorkspaceId;
     if (workspaceId == null || workspaceId.isEmpty) {
-      final email = await _storage.getEmail() ?? '';
-      final accountHint = email.isEmpty ? '' : ' for $email';
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage:
-            'No workspace selected$accountHint. Please select or create a workspace first.',
+        errorMessage: 'No workspace selected. Please select or create a workspace first.',
       );
       return;
     }
@@ -408,7 +350,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
         selectedWorkspaceName: state.selectedWorkspaceName,
         inputDevices: state.inputDevices,
         selectedDevice: state.selectedDevice,
-        audioSource: state.audioSource,
+        captureSystemAudio: state.captureSystemAudio,
       );
 
   @override
@@ -420,8 +362,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
 final recordNotifierProvider =
     StateNotifierProvider<RecordNotifier, RecordState>((ref) {
-  return RecordNotifier(
-    ref.read(audioIngestApiProvider),
-    ref.read(secureStorageProvider),
-  );
+  return RecordNotifier(ref.read(audioIngestApiProvider));
 });
+
+
+// ─── State ────────────────────────────────────────────────────────────────────

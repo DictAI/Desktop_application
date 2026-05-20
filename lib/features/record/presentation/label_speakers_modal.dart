@@ -1,9 +1,11 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/providers.dart';
+import '../../workspace/presentation/workspace_notifier.dart';
 import '../data/dto/anonymous_session_dto.dart';
 import 'anonymous_record_notifier.dart';
 
@@ -71,9 +73,13 @@ class _LabelSpeakersModalState extends ConsumerState<LabelSpeakersModal> {
       final api = ref.read(anonymousSessionApiProvider);
       final sessionId = ref.read(anonRecordNotifierProvider).sessionId!;
       final bytes = await api.getFragment(sessionId, speaker.speakerId);
-      await player.play(BytesSource(Uint8List.fromList(bytes)));
-    } catch (_) {
-      // Silently fail — fragment unavailable
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/fragment_${speaker.speakerId}.wav');
+      await file.writeAsBytes(bytes);
+      await player.play(DeviceFileSource(file.path));
+    } catch (e, st) {
+      debugPrint('fragment playback error: $e\n$st');
     } finally {
       if (mounted) setState(() => _loadingAudio[speaker.speakerId] = false);
     }
@@ -97,6 +103,11 @@ class _LabelSpeakersModalState extends ConsumerState<LabelSpeakersModal> {
               : _workspaceNameCtrl.text.trim(),
           assignments: assignments,
         );
+
+    // Refresh workspace list so the new workspace appears immediately
+    if (ref.read(anonRecordNotifierProvider).status == AnonStatus.done) {
+      await ref.read(workspacesNotifierProvider.notifier).load();
+    }
   }
 
   @override

@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import '../storage/secure_storage.dart';
 
-/// Добавляет JWT Bearer token к каждому запросу, кроме /auth/login и /auth/register.
 final class AuthInterceptor extends Interceptor {
   final SecureStorage _storage;
+  final Future<void> Function()? onUnauthorized;
 
-  AuthInterceptor(this._storage);
+  AuthInterceptor(this._storage, {this.onUnauthorized});
 
   static const _publicPaths = {'/auth/login', '/auth/register'};
 
@@ -22,5 +22,14 @@ final class AuthInterceptor extends Interceptor {
       }
     }
     handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (err.response?.statusCode == 401) {
+      await _storage.deleteToken();
+      await onUnauthorized?.call();
+    }
+    handler.next(err);
   }
 }
