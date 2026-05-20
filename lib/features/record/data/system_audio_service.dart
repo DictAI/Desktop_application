@@ -22,17 +22,38 @@ class SystemAudioService {
     }
   }
 
-  /// Starts capturing system audio. Saves to a temp .m4a file.
+  /// Starts capturing audio. Saves to a temp .wav file.
+  /// [mode] can be "system" (default) or "both" (system + microphone mixed).
   /// Returns the output file path.
-  Future<String> startRecording() async {
+  Future<String> startRecording({String mode = 'system'}) async {
     final dir = await getTemporaryDirectory();
     final path =
-        '${dir.path}/sysaudio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _channel.invokeMethod<void>('startRecording', {'path': path});
+        '${dir.path}/sysaudio_${DateTime.now().millisecondsSinceEpoch}.wav';
+    await _channel.invokeMethod<void>('startRecording', {
+      'path': path,
+      'mode': mode,
+    });
     return path;
   }
 
+  /// Mixes two WAV files and returns a new temp .wav path.
+  Future<String> mixWithMicrophone({
+    required String systemPath,
+    required String microphonePath,
+  }) async {
+    final dir = await getTemporaryDirectory();
+    final outputPath =
+        '${dir.path}/mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
+    await _channel.invokeMethod<void>('mixWavFiles', {
+      'systemPath': systemPath,
+      'microphonePath': microphonePath,
+      'outputPath': outputPath,
+    });
+    return outputPath;
+  }
+
   /// Stops capturing and finalises the file.
+  /// Throws [PlatformException] if no audio was captured.
   Future<void> stopRecording() async {
     await _channel.invokeMethod<void>('stopRecording');
   }

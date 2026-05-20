@@ -79,7 +79,7 @@ class _Sidebar extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 const Text(
-                  'Voice AI',
+                  'Dict AI',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 17,

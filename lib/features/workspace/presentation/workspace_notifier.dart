@@ -3,6 +3,8 @@ import '../data/workspace_api.dart';
 import '../data/dto/workspace_dto.dart';
 import '../data/dto/participant_dto.dart';
 import '../../../core/error/app_exception.dart';
+import '../../../features/voice_profile/data/dto/voice_profile_dto.dart';
+import '../../../features/voice_profile/data/voice_profile_api.dart';
 import '../../../shared/providers/providers.dart';
 
 // ─── Workspaces list ──────────────────────────────────────────────────────────
@@ -44,7 +46,8 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   }
 
   Future<void> load() async {
-    state = state.copyWith(status: WorkspacesStatus.loading, errorMessage: null);
+    state =
+        state.copyWith(status: WorkspacesStatus.loading, errorMessage: null);
     try {
       final list = await _api.getWorkspaces();
       state = state.copyWith(status: WorkspacesStatus.loaded, workspaces: list);
@@ -116,6 +119,8 @@ class WorkspaceDetailState {
   final DetailStatus status;
   final WorkspaceDto? workspace;
   final List<ParticipantDto> participants;
+  final List<VoiceProfileDto> voiceProfiles;
+  final Map<String, bool> voiceProfileStatus;
   final String? errorMessage;
   final bool isAddingParticipant;
 
@@ -123,6 +128,8 @@ class WorkspaceDetailState {
     this.status = DetailStatus.loading,
     this.workspace,
     this.participants = const [],
+    this.voiceProfiles = const [],
+    this.voiceProfileStatus = const {},
     this.errorMessage,
     this.isAddingParticipant = false,
   });
@@ -131,6 +138,8 @@ class WorkspaceDetailState {
     DetailStatus? status,
     WorkspaceDto? workspace,
     List<ParticipantDto>? participants,
+    List<VoiceProfileDto>? voiceProfiles,
+    Map<String, bool>? voiceProfileStatus,
     String? errorMessage,
     bool? isAddingParticipant,
   }) =>
@@ -138,6 +147,8 @@ class WorkspaceDetailState {
         status: status ?? this.status,
         workspace: workspace ?? this.workspace,
         participants: participants ?? this.participants,
+        voiceProfiles: voiceProfiles ?? this.voiceProfiles,
+        voiceProfileStatus: voiceProfileStatus ?? this.voiceProfileStatus,
         errorMessage: errorMessage,
         isAddingParticipant: isAddingParticipant ?? this.isAddingParticipant,
       );
@@ -145,9 +156,10 @@ class WorkspaceDetailState {
 
 class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
   final WorkspaceApi _api;
+  final VoiceProfileApi _voiceApi;
   final String workspaceId;
 
-  WorkspaceDetailNotifier(this._api, this.workspaceId)
+  WorkspaceDetailNotifier(this._api, this._voiceApi, this.workspaceId)
       : super(const WorkspaceDetailState()) {
     load();
   }
@@ -157,10 +169,13 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     try {
       final ws = await _api.getWorkspace(workspaceId);
       final participants = await _api.getParticipants(workspaceId);
+      final voiceProfiles = await _voiceApi.getVoiceProfiles();
       state = state.copyWith(
         status: DetailStatus.loaded,
         workspace: ws,
         participants: participants,
+        voiceProfiles: voiceProfiles,
+        voiceProfileStatus: _statusesFromParticipants(participants),
       );
     } on AppException catch (e) {
       state = state.copyWith(
@@ -170,20 +185,67 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     }
   }
 
+  Future<bool> uploadVoiceProfile({
+    required String participantId,
+    required String audioPath,
+  }) async {
+    try {
+      final participant = _findParticipant(participantId);
+      final response = await _voiceApi.createVoiceProfile(
+        workspaceId: workspaceId,
+        participantId: participantId,
+        audioPath: audioPath,
+        displayName: participant?.name,
+      );
+      final voiceProfileId = response['voice_profile_id'] as String?;
+      final participants = state.participants
+          .map((p) => p.participantId == participantId && voiceProfileId != null
+              ? p.copyWith(voiceProfileId: voiceProfileId)
+              : p)
+          .toList();
+      final voiceProfiles = await _voiceApi.getVoiceProfiles();
+      state = state.copyWith(
+        participants: participants,
+        voiceProfiles: voiceProfiles,
+        voiceProfileStatus: {
+          ...state.voiceProfileStatus,
+          participantId: true,
+        },
+      );
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
+      return false;
+    }
+  }
+
   Future<bool> addParticipant({
     required String name,
     required String email,
+    String? voiceProfileId,
   }) async {
     state = state.copyWith(isAddingParticipant: true, errorMessage: null);
     try {
-      final p = await _api.addParticipant(
+      var participant = await _api.addParticipant(
         workspaceId: workspaceId,
         name: name,
         email: email,
       );
+      if (voiceProfileId != null) {
+        await _voiceApi.assignVoiceProfile(
+          workspaceId: workspaceId,
+          participantId: participant.participantId,
+          voiceProfileId: voiceProfileId,
+        );
+        participant = participant.copyWith(voiceProfileId: voiceProfileId);
+      }
       state = state.copyWith(
         isAddingParticipant: false,
-        participants: [...state.participants, p],
+        participants: [...state.participants, participant],
+        voiceProfileStatus: {
+          ...state.voiceProfileStatus,
+          participant.participantId: participant.voiceProfileId != null,
+        },
       );
       return true;
     } on AppException catch (e) {
@@ -191,6 +253,34 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
         isAddingParticipant: false,
         errorMessage: e.message,
       );
+      return false;
+    }
+  }
+
+  Future<bool> assignVoiceProfile({
+    required String participantId,
+    required String voiceProfileId,
+  }) async {
+    try {
+      await _voiceApi.assignVoiceProfile(
+        workspaceId: workspaceId,
+        participantId: participantId,
+        voiceProfileId: voiceProfileId,
+      );
+      state = state.copyWith(
+        participants: state.participants
+            .map((p) => p.participantId == participantId
+                ? p.copyWith(voiceProfileId: voiceProfileId)
+                : p)
+            .toList(),
+        voiceProfileStatus: {
+          ...state.voiceProfileStatus,
+          participantId: true,
+        },
+      );
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
       return false;
     }
   }
@@ -211,6 +301,10 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
         participants: state.participants
             .map((p) => p.participantId == participantId ? updated : p)
             .toList(),
+        voiceProfileStatus: {
+          ...state.voiceProfileStatus,
+          participantId: updated.voiceProfileId != null,
+        },
       );
       return true;
     } on AppException catch (e) {
@@ -225,10 +319,13 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
         workspaceId: workspaceId,
         participantId: participantId,
       );
+      final nextStatus = Map<String, bool>.from(state.voiceProfileStatus)
+        ..remove(participantId);
       state = state.copyWith(
         participants: state.participants
             .where((p) => p.participantId != participantId)
             .toList(),
+        voiceProfileStatus: nextStatus,
       );
       return true;
     } on AppException catch (e) {
@@ -248,12 +345,29 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     }
   }
 
+  ParticipantDto? _findParticipant(String participantId) {
+    for (final participant in state.participants) {
+      if (participant.participantId == participantId) return participant;
+    }
+    return null;
+  }
+
+  Map<String, bool> _statusesFromParticipants(
+      List<ParticipantDto> participants) {
+    return {
+      for (final participant in participants)
+        participant.participantId: participant.voiceProfileId != null,
+    };
+  }
+
   void clearError() => state = state.copyWith(errorMessage: null);
 }
 
-// Family provider — one notifier per workspaceId
 final workspaceDetailProvider = StateNotifierProvider.family<
     WorkspaceDetailNotifier, WorkspaceDetailState, String>(
-  (ref, workspaceId) =>
-      WorkspaceDetailNotifier(ref.read(workspaceApiProvider), workspaceId),
+  (ref, workspaceId) => WorkspaceDetailNotifier(
+    ref.read(workspaceApiProvider),
+    ref.read(voiceProfileApiProvider),
+    workspaceId,
+  ),
 );

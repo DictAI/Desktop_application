@@ -155,8 +155,6 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.smart_toy_rounded, color: AppColors.accent, size: 20),
-          const SizedBox(width: 10),
           const Expanded(
             child: Text(
               'AI Assistant',

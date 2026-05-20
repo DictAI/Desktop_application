@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/storage/secure_storage.dart';
 
 class AnthropicService {
-  static const _model = 'claude-opus-4-5';
+  static const _model = 'claude-sonnet-4-5';
 
   final SecureStorage _storage;
   AnthropicService(this._storage);

@@ -119,7 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      'Voice AI',
+                      'Dict AI',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 22,

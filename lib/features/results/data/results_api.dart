@@ -38,11 +38,12 @@ final class ResultsApi {
     }
   }
 
-  // No DELETE endpoint exists in backend — kept as no-op stub.
   Future<void> deleteResult(String audioId) async {
-    throw const StubException(
-      'DELETE /meetings/results/:audio_id не реализован в backend.',
-    );
+    try {
+      await _dio.delete('/meetings/results/$audioId');
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
   }
 
   /// Скачать PDF с summary.

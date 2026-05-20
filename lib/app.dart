@@ -11,7 +11,7 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'Voice AI',
+      title: 'Dict AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       routerConfig: router,
