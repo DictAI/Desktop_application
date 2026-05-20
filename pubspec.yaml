@@ -33,6 +33,9 @@ dependencies:
   # Microphone recording
   record: ^5.1.2
 
+  # Audio playback (for anonymous speaker fragments)
+  audioplayers: ^6.0.0
+
   # Temporary directory for recorded files
   path_provider: ^2.1.4
   url_launcher: ^6.3.2

@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../workspace/data/dto/participant_dto.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
+import 'anonymous_record_notifier.dart';
+import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 import 'chat_panel.dart';
@@ -72,12 +74,14 @@ class RecordScreen extends ConsumerWidget {
                   _RecordStatusWidget(status: state.status),
                   const SizedBox(height: 32),
 
-                  // ── Источник звука ────────────────────────────────────────
-                  _AudioSourceToggle(
-                    source: state.audioSource,
-                    onChanged: notifier.setAudioSource,
-                  ),
-                  const SizedBox(height: 24),
+                  // ── Источник звука (только macOS) ────────────────────────
+                  if (!Platform.isLinux) ...[
+                    _AudioSourceToggle(
+                      source: state.audioSource,
+                      onChanged: notifier.setAudioSource,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // ── Выбор устройства (только для микрофона) ───────────────
                   if (state.audioSource == AudioSource.microphone ||
@@ -98,6 +102,14 @@ class RecordScreen extends ConsumerWidget {
                         notifier.selectWorkspace(id, name),
                     onClear: notifier.clearWorkspace,
                   ),
+
+                  // ── Запись без воркспейса ─────────────────────────────────
+                  if (!state.isActive) ...[
+                    const SizedBox(height: 16),
+                    _AnonymousRecordButton(
+                      onTap: () => _showLabelSpeakersModal(context, ref),
+                    ),
+                  ],
 
                   // ── Предупреждение о неполных профилях ────────────────────
                   if (blockReason != null && !state.isActive) ...[
@@ -121,7 +133,7 @@ class RecordScreen extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                blockReason!,
+                                blockReason,
                                 style: const TextStyle(
                                     color: AppColors.error,
                                     fontSize: 12,
@@ -189,6 +201,55 @@ class RecordScreen extends ConsumerWidget {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.7),
       builder: (_) => const UploadModal(),
+    );
+  }
+
+  void _showLabelSpeakersModal(BuildContext context, WidgetRef ref) {
+    ref.read(anonRecordNotifierProvider.notifier).startRecording();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => const LabelSpeakersModal(),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Кнопка анонимной записи
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AnonymousRecordButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AnonymousRecordButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.surfaceElevated),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_off_rounded,
+                color: AppColors.textSecondary, size: 16),
+            SizedBox(width: 8),
+            Text(
+              'Record without workspace',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

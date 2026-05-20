@@ -5,6 +5,7 @@ import '../../core/storage/secure_storage.dart';
 import '../../features/auth/data/auth_api.dart';
 import '../../features/workspace/data/workspace_api.dart';
 import '../../features/record/data/audio_ingest_api.dart';
+import '../../features/record/data/anonymous_session_api.dart';
 import '../../features/record/data/anthropic_service.dart';
 import '../../features/results/data/results_api.dart';
 import '../../features/voice_profile/data/voice_profile_api.dart';
@@ -48,4 +49,8 @@ final voiceProfileApiProvider = Provider<VoiceProfileApi>(
 
 final anthropicServiceProvider = Provider<AnthropicService>(
   (ref) => AnthropicService(ref.read(secureStorageProvider)),
+);
+
+final anonymousSessionApiProvider = Provider<AnonymousSessionApi>(
+  (ref) => AnonymousSessionApi(ref.read(dioProvider)),
 );
