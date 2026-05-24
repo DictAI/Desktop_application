@@ -92,6 +92,8 @@ class ResultsScreen extends ConsumerWidget {
                       notifier.downloadSummary(audioId, audioId),
                   onDownloadTranscript: (audioId) =>
                       notifier.downloadTranscript(audioId, audioId),
+                  onDownloadAudio: (audioId) =>
+                      notifier.downloadAudio(audioId),
                   onDelete: (audioId) async {
                     final ok = await notifier.delete(audioId);
                     if (!ok && context.mounted) {
@@ -121,6 +123,7 @@ class _ResultsList extends StatelessWidget {
   final Map<String, bool> downloadingPdf;
   final void Function(String audioId) onDownloadSummary;
   final void Function(String audioId) onDownloadTranscript;
+  final void Function(String audioId) onDownloadAudio;
   final Future<void> Function(String audioId) onDelete;
 
   const _ResultsList({
@@ -128,6 +131,7 @@ class _ResultsList extends StatelessWidget {
     required this.downloadingPdf,
     required this.onDownloadSummary,
     required this.onDownloadTranscript,
+    required this.onDownloadAudio,
     required this.onDelete,
   });
 
@@ -141,6 +145,7 @@ class _ResultsList extends StatelessWidget {
         isDownloading: downloadingPdf[results[i].audioId] ?? false,
         onDownloadSummary: () => onDownloadSummary(results[i].audioId),
         onDownloadTranscript: () => onDownloadTranscript(results[i].audioId),
+        onDownloadAudio: () => onDownloadAudio(results[i].audioId),
         onDelete: () => onDelete(results[i].audioId),
       ),
     );
@@ -152,6 +157,7 @@ class _ResultCard extends StatelessWidget {
   final bool isDownloading;
   final VoidCallback onDownloadSummary;
   final VoidCallback onDownloadTranscript;
+  final VoidCallback onDownloadAudio;
   final Future<void> Function() onDelete;
 
   const _ResultCard({
@@ -159,6 +165,7 @@ class _ResultCard extends StatelessWidget {
     required this.isDownloading,
     required this.onDownloadSummary,
     required this.onDownloadTranscript,
+    required this.onDownloadAudio,
     required this.onDelete,
   });
 
@@ -170,6 +177,8 @@ class _ResultCard extends StatelessWidget {
     final workspaceLabel = result.workspaceName?.isNotEmpty == true
         ? result.workspaceName!
         : 'Workspace ${result.workspaceId.substring(0, 12)}…';
+    final isDone = result.status == 'done';
+    final isFailed = result.status == 'failed';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -217,6 +226,8 @@ class _ResultCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // Status chip
+              _StatusChip(status: result.status),
               // Меню
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_horiz_rounded,
@@ -240,10 +251,7 @@ class _ResultCard extends StatelessWidget {
           const SizedBox(height: 16),
 
           // ── Workspace ───────────────────────────────────────────────
-          _TagRow(
-            label: 'Workspace',
-            value: workspaceLabel,
-          ),
+          _TagRow(label: 'Workspace', value: workspaceLabel),
           const SizedBox(height: 16),
 
           // ── Кнопки скачивания ───────────────────────────────────────
@@ -253,14 +261,21 @@ class _ResultCard extends StatelessWidget {
                 label: 'Summary PDF',
                 icon: Icons.summarize_rounded,
                 isLoading: isDownloading,
-                onTap: onDownloadSummary,
+                onTap: isDone ? onDownloadSummary : null,
               ),
               const SizedBox(width: 10),
               _PdfButton(
                 label: 'Transcript PDF',
                 icon: Icons.article_rounded,
                 isLoading: isDownloading,
-                onTap: onDownloadTranscript,
+                onTap: isDone ? onDownloadTranscript : null,
+              ),
+              const SizedBox(width: 10),
+              _PdfButton(
+                label: 'Audio',
+                icon: Icons.audio_file_rounded,
+                isLoading: isDownloading,
+                onTap: (!isDone && !isFailed) ? null : onDownloadAudio,
               ),
             ],
           ),
@@ -309,7 +324,7 @@ class _PdfButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isLoading;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _PdfButton({
     required this.label,
@@ -320,39 +335,84 @@ class _PdfButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = onTap == null && !isLoading;
     return GestureDetector(
-      onTap: isLoading ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
+      onTap: (isLoading || disabled) ? null : onTap,
+      child: Opacity(
+        opacity: disabled ? 0.4 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.accent,
+                  ),
+                )
+              else
+                Icon(icon, color: AppColors.accent, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-              )
-            else
-              Icon(icon, color: AppColors.accent, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  const _StatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label, showSpinner) = switch (status) {
+      'done' => (AppColors.success, 'Done', false),
+      'failed' => (AppColors.error, 'Failed', false),
+      _ => (AppColors.textSecondary, 'Processing', true),
+    };
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showSpinner)
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
+            )
+          else
+            Icon(
+              status == 'done' ? Icons.check_circle_rounded : Icons.error_rounded,
+              size: 10,
+              color: color,
+            ),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }

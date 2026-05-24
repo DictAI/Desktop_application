@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,8 +7,6 @@ import '../data/dto/result_dto.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../shared/providers/providers.dart';
 
-// ─── State ────────────────────────────────────────────────────────────────────
-
 enum ResultsStatus { idle, loading, loaded, error }
 
 class ResultsState {
@@ -15,7 +14,6 @@ class ResultsState {
   final List<ResultDto> results;
   final String? errorMessage;
   final bool isStubError;
-  // PDF download states: audioId → true/false (loading)
   final Map<String, bool> downloadingPdf;
 
   const ResultsState({
@@ -42,66 +40,61 @@ class ResultsState {
       );
 }
 
-// ─── Notifier ─────────────────────────────────────────────────────────────────
-
 class ResultsNotifier extends StateNotifier<ResultsState> {
   final ResultsApi _api;
+  Timer? _pollTimer;
 
   ResultsNotifier(this._api) : super(const ResultsState()) {
     load();
   }
 
-  Future<void> load({
-    DateTime? from,
-    DateTime? to,
-  }) async {
-    state = state.copyWith(
-      status: ResultsStatus.loading,
-      errorMessage: null,
-    );
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> load({DateTime? from, DateTime? to}) async {
+    state = state.copyWith(status: ResultsStatus.loading, errorMessage: null);
     try {
-      final list = await _api.getResults(
-        startDate: from,
-        endDate: to,
-      );
-      state = state.copyWith(
-        status: ResultsStatus.loaded,
-        results: list,
-      );
+      final list = await _api.getResults(startDate: from, endDate: to);
+      state = state.copyWith(status: ResultsStatus.loaded, results: list);
+      _schedulePollIfNeeded();
     } on StubException catch (e) {
-      state = state.copyWith(
-        status: ResultsStatus.error,
-        errorMessage: e.message,
-        isStubError: true,
-      );
+      state = state.copyWith(status: ResultsStatus.error, errorMessage: e.message, isStubError: true);
     } on AppException catch (e) {
-      state = state.copyWith(
-        status: ResultsStatus.error,
-        errorMessage: e.message,
-        isStubError: false,
-      );
+      state = state.copyWith(status: ResultsStatus.error, errorMessage: e.message, isStubError: false);
     }
+  }
+
+  void _schedulePollIfNeeded() {
+    final hasPending = state.results.any((r) => r.status == 'pending');
+    if (hasPending && _pollTimer == null) {
+      _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
+    } else if (!hasPending) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    }
+  }
+
+  Future<void> _poll() async {
+    try {
+      final list = await _api.getResults();
+      state = state.copyWith(results: list);
+      _schedulePollIfNeeded();
+    } catch (_) {}
   }
 
   Future<bool> delete(String audioId) async {
     try {
       await _api.deleteResult(audioId);
-      state = state.copyWith(
-        results:
-            state.results.where((r) => r.audioId != audioId).toList(),
-      );
+      state = state.copyWith(results: state.results.where((r) => r.audioId != audioId).toList());
       return true;
     } on StubException catch (e) {
-      state = state.copyWith(
-        errorMessage: e.message,
-        isStubError: true,
-      );
+      state = state.copyWith(errorMessage: e.message, isStubError: true);
       return false;
     } on AppException catch (e) {
-      state = state.copyWith(
-        errorMessage: e.message,
-        isStubError: false,
-      );
+      state = state.copyWith(errorMessage: e.message, isStubError: false);
       return false;
     }
   }
@@ -130,13 +123,24 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
     }
   }
 
+  Future<void> downloadAudio(String audioId) async {
+    _setDownloading(audioId, true);
+    try {
+      final bytes = await _api.getAudio(audioId);
+      await _saveBytes(bytes, '${audioId.substring(0, 8)}_audio.mp3');
+    } on AppException catch (e) {
+      state = state.copyWith(errorMessage: e.message);
+    } finally {
+      _setDownloading(audioId, false);
+    }
+  }
+
   void _setDownloading(String audioId, bool value) {
     final map = Map<String, bool>.from(state.downloadingPdf);
     map[audioId] = value;
     state = state.copyWith(downloadingPdf: map);
   }
 
-  /// Сохраняет байты во временный файл Downloads и открывает его.
   Future<void> _saveBytes(List<int> bytes, String fileName) async {
     final dir = Platform.isWindows
         ? '${Platform.environment['USERPROFILE']}\\Downloads'
@@ -145,16 +149,15 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
             : '/tmp';
     final file = File('$dir/$fileName');
     await file.writeAsBytes(bytes);
-    final uri = Uri.file(file.path);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [file.path]);
+    } else {
+      final uri = Uri.file(file.path);
+      if (await canLaunchUrl(uri)) await launchUrl(uri);
     }
   }
 
-  void clearError() => state = state.copyWith(
-        errorMessage: null,
-        isStubError: false,
-      );
+  void clearError() => state = state.copyWith(errorMessage: null, isStubError: false);
 }
 
 final resultsNotifierProvider =

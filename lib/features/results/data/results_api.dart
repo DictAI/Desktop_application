@@ -72,6 +72,19 @@ final class ResultsApi {
     }
   }
 
+  /// Скачать исходное аудио.
+  Future<List<int>> getAudio(String audioId) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        '/meetings/results/$audioId/audio',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data!;
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   AppException _mapError(DioException e) => switch (e.response?.statusCode) {
         401 => const UnauthorizedException(),
         404 => const NotFoundException('Result not found'),

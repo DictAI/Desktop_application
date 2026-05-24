@@ -1,9 +1,3 @@
-// Result DTO — маппинг ответа backend → Dart-объект.
-// Поля соответствуют JSON из POST /meetings/results.
-//
-// ⚠️ Поля summary_url / transcript_url и created_at будут заполнены
-// только после реализации GET /meetings/results (см. MISSING_ENDPOINTS.md п.2).
-// До тех пор объекты ResultDto создаются только через Upload-ответ.
 class ResultDto {
   final String resultId;
   final String audioId;
@@ -12,7 +6,8 @@ class ResultDto {
   final String uploadUserId;
   final String summaryUrl;
   final String transcriptUrl;
-  final DateTime? createdAt; // nullable — не всегда возвращается backend
+  final String status; // pending | done | failed
+  final DateTime? createdAt;
 
   const ResultDto({
     required this.resultId,
@@ -22,6 +17,7 @@ class ResultDto {
     required this.uploadUserId,
     required this.summaryUrl,
     required this.transcriptUrl,
+    this.status = 'pending',
     this.createdAt,
   });
 
@@ -31,21 +27,11 @@ class ResultDto {
         workspaceId: json['workspace_id'] as String,
         workspaceName: (json['workspace_name'] as String?)?.trim(),
         uploadUserId: json['upload_user_id'] as String,
-        summaryUrl: json['summary_url'] as String,
-        transcriptUrl: json['transcript_url'] as String,
+        summaryUrl: (json['summary_url'] as String?) ?? '',
+        transcriptUrl: (json['transcript_url'] as String?) ?? '',
+        status: (json['status'] as String?) ?? 'pending',
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
             : null,
       );
-
-  Map<String, dynamic> toJson() => {
-        'result_id': resultId,
-        'audio_id': audioId,
-        'workspace_id': workspaceId,
-        if (workspaceName != null) 'workspace_name': workspaceName,
-        'upload_user_id': uploadUserId,
-        'summary_url': summaryUrl,
-        'transcript_url': transcriptUrl,
-        if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
-      };
 }
