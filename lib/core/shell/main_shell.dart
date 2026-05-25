@@ -26,10 +26,8 @@ class MainShell extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // ── Sidebar ────────────────────────────────────────────────────
             _Sidebar(items: _items, currentPath: location, ref: ref),
             const SizedBox(width: 16),
-            // ── Content ────────────────────────────────────────────────────
             Expanded(child: child),
           ],
         ),
@@ -38,7 +36,6 @@ class MainShell extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _Sidebar extends StatelessWidget {
   final List<_NavItem> items;
@@ -62,7 +59,6 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Логотип ───────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
             child: Row(
@@ -90,7 +86,6 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
 
-          // ── Пункты меню ───────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Column(
@@ -103,7 +98,6 @@ class _Sidebar extends StatelessWidget {
 
           const Spacer(),
 
-          // ── Logout ────────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
             child: _LogoutButton(ref: ref),
@@ -208,7 +202,6 @@ class _LogoutButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _NavItem {
   final IconData icon;

@@ -8,7 +8,6 @@ import '../../../shared/providers/providers.dart';
 import '../data/audio_ingest_api.dart';
 import '../data/system_audio_service.dart';
 
-// ─── State ────────────────────────────────────────────────────────────────────
 
 enum RecordStatus { idle, recording, paused, uploading, done, error }
 
@@ -67,7 +66,6 @@ class RecordState {
       );
 }
 
-// ─── Notifier ─────────────────────────────────────────────────────────────────
 
 class RecordNotifier extends StateNotifier<RecordState> {
   final AudioIngestApi _api;
@@ -76,12 +74,12 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
   String? _sysAudioPath;
   String? _micAudioPath;
+  Process? _parecProcess;
 
   RecordNotifier(this._api) : super(const RecordState()) {
     _loadDevices();
   }
 
-  // ── Devices ───────────────────────────────────────────────────────────────
 
   Future<void> _loadDevices() async {
     final hasPerm = await _recorder.hasPermission();
@@ -95,7 +93,6 @@ class RecordNotifier extends StateNotifier<RecordState> {
   void selectDevice(InputDevice? device) => state =
       state.copyWith(selectedDevice: device, clearDevice: device == null);
 
-  // ── Source / Workspace ────────────────────────────────────────────────────
 
   void setCaptureSystemAudio(bool value) =>
       state = state.copyWith(captureSystemAudio: value);
@@ -109,7 +106,6 @@ class RecordNotifier extends StateNotifier<RecordState> {
         captureSystemAudio: state.captureSystemAudio,
       );
 
-  // ── Record controls ───────────────────────────────────────────────────────
 
   Future<void> toggleRecording() async {
     if (state.status == RecordStatus.recording) {
@@ -144,6 +140,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
     if (state.captureSystemAudio && !Platform.isLinux) {
       await _startMicAndSystem();
+    } else if (state.captureSystemAudio && Platform.isLinux) {
+      await _startMicAndSystemLinux();
     } else {
       await _startMicrophone();
     }
@@ -238,6 +236,57 @@ class RecordNotifier extends StateNotifier<RecordState> {
     }
   }
 
+  Future<void> _startMicAndSystemLinux() async {
+    final micGranted = await _recorder.hasPermission();
+    if (!micGranted) {
+      state = state.copyWith(
+        status: RecordStatus.error,
+        errorMessage: 'Microphone permission denied.',
+      );
+      return;
+    }
+
+    final dir = await getTemporaryDirectory();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final micPath = '${dir.path}/microphone_$ts.wav';
+    final sysPath = '${dir.path}/system_$ts.wav';
+
+    try {
+      final monitorSource = await _getDefaultMonitor();
+
+      _parecProcess = await Process.start('parec', [
+        '--device=$monitorSource',
+        '--format=s16le',
+        '--rate=16000',
+        '--channels=1',
+        '--file-format=wav',
+        sysPath,
+      ]);
+      _sysAudioPath = sysPath;
+      _micAudioPath = micPath;
+
+      await _recorder.start(
+        RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+          device: state.selectedDevice,
+        ),
+        path: micPath,
+      );
+      state = state.copyWith(status: RecordStatus.recording);
+    } on Exception catch (e) {
+      _parecProcess?.kill();
+      _parecProcess = null;
+      _sysAudioPath = null;
+      _micAudioPath = null;
+      state = state.copyWith(
+        status: RecordStatus.error,
+        errorMessage: 'Failed to start system audio capture: $e',
+      );
+    }
+  }
+
   Future<void> _stopAndUpload() async {
     String? path;
 
@@ -284,6 +333,45 @@ class RecordNotifier extends StateNotifier<RecordState> {
           errorMessage: systemStopError is PlatformException
               ? systemStopError.message ?? 'No audio was captured.'
               : 'No audio was captured.',
+        );
+        return;
+      }
+    } else if (state.captureSystemAudio && Platform.isLinux) {
+      // Stop parec
+      _parecProcess?.kill();
+      _parecProcess = null;
+      final sysPath = _sysAudioPath;
+      _sysAudioPath = null;
+
+      final stoppedMicPath = await _recorder.stop();
+      final micPath = stoppedMicPath ?? _micAudioPath;
+      _micAudioPath = null;
+
+      final hasSystem = sysPath != null && File(sysPath).existsSync();
+      final hasMic = micPath != null && File(micPath).existsSync();
+
+      if (hasSystem && hasMic) {
+        // Mix with ffmpeg
+        final dir = await getTemporaryDirectory();
+        final mixedPath = '${dir.path}/mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
+        final result = await Process.run('ffmpeg', [
+          '-i', micPath, '-i', sysPath,
+          '-filter_complex', 'amix=inputs=2:duration=first',
+          '-ar', '16000', '-ac', '1', mixedPath,
+        ]);
+        if (result.exitCode == 0) {
+          path = mixedPath;
+        } else {
+          path = micPath; // fallback to mic only
+        }
+      } else if (hasMic) {
+        path = micPath;
+      } else if (hasSystem) {
+        path = sysPath;
+      } else {
+        state = state.copyWith(
+          status: RecordStatus.error,
+          errorMessage: 'No audio was captured.',
         );
         return;
       }
@@ -360,10 +448,25 @@ class RecordNotifier extends StateNotifier<RecordState> {
   }
 }
 
+Future<String> _getDefaultMonitor() async {
+  final info = await Process.run('pactl', ['info']);
+  final line = (info.stdout as String)
+      .split('\n')
+      .firstWhere((l) => l.contains('Default Sink:'), orElse: () => '');
+  if (line.isNotEmpty) {
+    final sink = line.split(':').last.trim();
+    return '$sink.monitor';
+  }
+  final sources = await Process.run('pactl', ['list', 'short', 'sources']);
+  final monitorLine = (sources.stdout as String)
+      .split('\n')
+      .firstWhere((l) => l.contains('.monitor'), orElse: () => '');
+  return monitorLine.isNotEmpty ? monitorLine.split('\t')[1] : 'auto_null.monitor';
+}
+
 final recordNotifierProvider =
     StateNotifierProvider<RecordNotifier, RecordState>((ref) {
   return RecordNotifier(ref.read(audioIngestApiProvider));
 });
 
 
-// ─── State ────────────────────────────────────────────────────────────────────

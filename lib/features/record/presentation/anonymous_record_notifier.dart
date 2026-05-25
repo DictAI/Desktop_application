@@ -9,7 +9,6 @@ import '../../../shared/providers/providers.dart';
 import '../data/anonymous_session_api.dart';
 import '../data/dto/anonymous_session_dto.dart';
 
-// ─── State ────────────────────────────────────────────────────────────────────
 
 enum AnonStatus {
   idle,
@@ -56,7 +55,6 @@ class AnonState {
       );
 }
 
-// ─── Notifier ─────────────────────────────────────────────────────────────────
 
 class AnonRecordNotifier extends StateNotifier<AnonState> {
   final AnonymousSessionApi _api;
@@ -64,12 +62,13 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
 
   Timer? _pollTimer;
   String? _recordingPath;
+  Process? _parecProcess;
+  String? _sysAudioPath;
 
   AnonRecordNotifier(this._api) : super(const AnonState());
 
-  // ── Recording ─────────────────────────────────────────────────────────────
 
-  Future<void> startRecording({InputDevice? device}) async {
+  Future<void> startRecording({InputDevice? device, bool captureSystemAudio = false}) async {
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
       state = state.copyWith(
@@ -83,8 +82,23 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
     final dir = await getTemporaryDirectory();
     final isLinux = !kIsWeb && Platform.isLinux;
     final ext = isLinux ? 'ogg' : 'm4a';
-    _recordingPath =
-        '${dir.path}/anon_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    _recordingPath = '${dir.path}/anon_$ts.$ext';
+
+    if (captureSystemAudio && isLinux) {
+      final sysPath = '${dir.path}/anon_sys_$ts.wav';
+      try {
+        final monitorSource = await _getDefaultMonitor();
+        _parecProcess = await Process.start('parec', [
+          '--device=$monitorSource',
+          '--format=s16le', '--rate=16000', '--channels=1',
+          '--file-format=wav', sysPath,
+        ]);
+        _sysAudioPath = sysPath;
+      } catch (_) {
+        _sysAudioPath = null;
+      }
+    }
 
     await _recorder.start(
       RecordConfig(
@@ -100,18 +114,32 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
   }
 
   Future<void> stopAndUpload() async {
-    final path = await _recorder.stop() ?? _recordingPath;
+    _parecProcess?.kill();
+    _parecProcess = null;
+    final sysPath = _sysAudioPath;
+    _sysAudioPath = null;
+
+    final micPath = await _recorder.stop() ?? _recordingPath;
     _recordingPath = null;
 
-    if (path == null) {
-      state = state.copyWith(
-        status: AnonStatus.error,
-        errorMessage: 'Recording failed: no output file.',
-      );
+    if (micPath == null) {
+      state = state.copyWith(status: AnonStatus.error, errorMessage: 'Recording failed: no output file.');
       return;
     }
 
-    await _uploadFile(File(path));
+    // Mix system + mic if both available
+    if (sysPath != null && File(sysPath).existsSync()) {
+      final dir = await getTemporaryDirectory();
+      final mixedPath = '${dir.path}/anon_mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final result = await Process.run('ffmpeg', [
+        '-i', micPath, '-i', sysPath,
+        '-filter_complex', 'amix=inputs=2:duration=first',
+        '-ar', '16000', '-ac', '1', mixedPath,
+      ]);
+      await _uploadFile(File(result.exitCode == 0 ? mixedPath : micPath));
+    } else {
+      await _uploadFile(File(micPath));
+    }
   }
 
   Future<void> uploadPickedFile(File file) => _uploadFile(file);
@@ -145,7 +173,6 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
     }
   }
 
-  // ── Polling ───────────────────────────────────────────────────────────────
 
   void _startPolling(String sessionId) {
     _pollTimer?.cancel();
@@ -169,7 +196,6 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
     });
   }
 
-  // ── Confirm ───────────────────────────────────────────────────────────────
 
   Future<void> confirm({
     required String? workspaceName,
@@ -192,7 +218,6 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
     }
   }
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
 
   void reset() {
     _pollTimer?.cancel();
@@ -207,7 +232,23 @@ class AnonRecordNotifier extends StateNotifier<AnonState> {
   }
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+Future<String> _getDefaultMonitor() async {
+  final info = await Process.run('pactl', ['info']);
+  final line = (info.stdout as String)
+      .split('\n')
+      .firstWhere((l) => l.contains('Default Sink:'), orElse: () => '');
+  if (line.isNotEmpty) {
+    final sink = line.split(':').last.trim();
+    return '$sink.monitor';
+  }
+  // fallback: first monitor source
+  final sources = await Process.run('pactl', ['list', 'short', 'sources']);
+  final monitorLine = (sources.stdout as String)
+      .split('\n')
+      .firstWhere((l) => l.contains('.monitor'), orElse: () => '');
+  return monitorLine.isNotEmpty ? monitorLine.split('\t')[1] : 'auto_null.monitor';
+}
+
 
 final anonRecordNotifierProvider =
     StateNotifierProvider<AnonRecordNotifier, AnonState>((ref) {

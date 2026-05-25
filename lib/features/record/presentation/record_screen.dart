@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
@@ -8,7 +7,6 @@ import 'anonymous_record_notifier.dart';
 import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
-import 'chat_panel.dart';
 
 class RecordScreen extends ConsumerStatefulWidget {
   const RecordScreen({super.key});
@@ -24,8 +22,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(recordNotifierProvider);
     final notifier = ref.read(recordNotifierProvider.notifier);
+    final anonState = ref.watch(anonRecordNotifierProvider);
+    final isAnonRecording = _anonymousMode && anonState.status == AnonStatus.recording;
+    final isEffectivelyActive = isAnonRecording || (!_anonymousMode && state.isActive);
 
-    // ── Проверка готовности воркспейса ─────────────────────────────────────
     String? blockReason;
     if (!_anonymousMode && state.selectedWorkspaceId != null) {
       final detail =
@@ -46,48 +46,41 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     }
 
     final canRecord = _anonymousMode
-        ? !state.isActive
+        ? !isEffectivelyActive
         : blockReason == null && !state.isActive && state.selectedWorkspaceId != null;
 
-    return Row(
-      children: [
-        // ── Основной контент ───────────────────────────────────────────────
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ── Тумблер анонимного режима ─────────────────────────────
-                  if (!state.isActive) ...[
-                    _AnonymousToggle(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+                  IgnorePointer(
+                    ignoring: isEffectivelyActive,
+                    child: _AnonymousToggle(
                       value: _anonymousMode,
                       onChanged: (v) => setState(() => _anonymousMode = v),
                     ),
-                    const SizedBox(height: 28),
-                  ],
+                  ),
+                  const SizedBox(height: 28),
 
-                  // ── Кнопка записи + пауза ─────────────────────────────────
                   _RecordButton(
-                    status: state.status,
+                    status: isAnonRecording ? RecordStatus.recording : state.status,
                     anonymous: _anonymousMode,
-                    onTap: state.isActive
+                    onTap: isEffectivelyActive
                         ? () => _handleStop(notifier)
                         : canRecord
                             ? () => _handleStart(notifier)
                             : null,
-                    onPause: state.isActive
+                    onPause: (!_anonymousMode && state.isActive)
                         ? () => notifier.togglePause()
                         : null,
                   ),
                   const SizedBox(height: 32),
 
-                  // ── Статус ────────────────────────────────────────────────
                   _RecordStatusWidget(status: state.status),
                   const SizedBox(height: 32),
 
-                  // ── Выбор устройства ──────────────────────────────────────
                   _DeviceSelector(
                     devices: state.inputDevices,
                     selected: state.selectedDevice,
@@ -96,17 +89,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Захват системного аудио (macOS: SCStream, Linux: не поддерживается) ──
-                  if (!Platform.isLinux) ...[
-                    _SystemAudioCheckbox(
-                      value: state.captureSystemAudio,
-                      onChanged: notifier.setCaptureSystemAudio,
-                    ),
-                    const SizedBox(height: 24),
-                  ] else
-                    const SizedBox(height: 8),
+                  _SystemAudioCheckbox(
+                    value: state.captureSystemAudio,
+                    onChanged: notifier.setCaptureSystemAudio,
+                  ),
+                  const SizedBox(height: 24),
 
-                  // ── Workspace-секция (затемняется в анонимном режиме) ─────
                   AnimatedOpacity(
                     opacity: _anonymousMode ? 0.3 : 1.0,
                     duration: const Duration(milliseconds: 200),
@@ -160,19 +148,16 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
 
                   const SizedBox(height: 32),
 
-                  // ── Upload audio ──────────────────────────────────────────
                   _UploadAudioButton(
                     onTap: () => _showUploadModal(context, anonymous: _anonymousMode),
                     isUploading: state.status == RecordStatus.uploading,
                   ),
 
-                  // ── Прогресс загрузки ─────────────────────────────────────
                   if (state.status == RecordStatus.uploading) ...[
                     const SizedBox(height: 20),
                     _UploadProgressBar(progress: state.uploadProgress),
                   ],
 
-                  // ── Успех ─────────────────────────────────────────────────
                   if (state.status == RecordStatus.done) ...[
                     const SizedBox(height: 20),
                     _UploadSuccess(
@@ -181,7 +166,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                     ),
                   ],
 
-                  // ── Ошибка ────────────────────────────────────────────────
                   if (state.errorMessage != null) ...[
                     const SizedBox(height: 20),
                     _ErrorBanner(
@@ -192,29 +176,24 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 ],
               ),
             ),
-          ),
-        ),
+          );
+        }
 
-        // ── Chat Panel ─────────────────────────────────────────────────────
-        Container(
-          width: 360,
-          margin: const EdgeInsets.only(left: 16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: const ChatPanel(),
-        ),
-      ],
-    );
-  }
-
-  void _handleStart(RecordNotifier notifier) {
+        void _handleStart(RecordNotifier notifier) {
     if (_anonymousMode) {
       final recordState = ref.read(recordNotifierProvider);
       ref.read(anonRecordNotifierProvider.notifier).startRecording(
             device: recordState.selectedDevice,
+            captureSystemAudio: recordState.captureSystemAudio,
           );
+    } else {
+      notifier.toggleRecording();
+    }
+  }
+
+  void _handleStop(RecordNotifier notifier) {
+    if (_anonymousMode) {
+      ref.read(anonRecordNotifierProvider.notifier).stopAndUpload();
       showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -226,10 +205,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     }
   }
 
-  void _handleStop(RecordNotifier notifier) {
-    notifier.toggleRecording();
-  }
-
   void _showUploadModal(BuildContext context, {bool anonymous = false}) {
     showDialog<void>(
       context: context,
@@ -239,9 +214,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Тумблер анонимного режима
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _AnonymousToggle extends StatelessWidget {
   final bool value;
@@ -331,9 +304,7 @@ class _AnonymousToggle extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Кнопка записи
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _RecordButton extends StatefulWidget {
   final RecordStatus status;
@@ -494,9 +465,7 @@ class _RecordButtonState extends State<_RecordButton>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Статус под кнопкой
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _RecordStatusWidget extends StatelessWidget {
   final RecordStatus status;
@@ -540,15 +509,10 @@ class _RecordStatusWidget extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Выбор воркспейса
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Переключатель источника звука
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SystemAudioCheckbox extends StatelessWidget {
   final bool value;
@@ -613,9 +577,7 @@ class _SystemAudioCheckbox extends StatelessWidget {
 
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Выбор устройства записи
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DeviceSelector extends StatelessWidget {
   final List<InputDevice> devices;
@@ -753,7 +715,6 @@ class _DeviceSelector extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _WorkspaceSelector extends ConsumerWidget {
   final String? selectedName;
@@ -968,9 +929,7 @@ class _IconSquareButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Кнопка загрузки файла
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _UploadAudioButton extends StatelessWidget {
   final VoidCallback onTap;
@@ -1011,9 +970,7 @@ class _UploadAudioButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Прогресс-бар загрузки
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _UploadProgressBar extends StatelessWidget {
   final double progress;
@@ -1049,9 +1006,7 @@ class _UploadProgressBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Успешная загрузка
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _UploadSuccess extends StatelessWidget {
   final String audioId;
@@ -1093,9 +1048,7 @@ class _UploadSuccess extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Баннер ошибки
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ErrorBanner extends StatelessWidget {
   final String message;
@@ -1137,9 +1090,7 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Диалог создания воркспейса
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _CreateWorkspaceDialog extends ConsumerStatefulWidget {
   final void Function(String id, String name) onCreated;

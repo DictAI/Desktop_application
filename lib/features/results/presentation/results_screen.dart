@@ -22,7 +22,6 @@ class ResultsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Заголовок + кнопка обновления ──────────────────────────────
           Row(
             children: [
               const Text(
@@ -63,7 +62,6 @@ class ResultsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          // ── Баннер ошибки / заглушки ─────────────────────────────────
           if (state.errorMessage != null)
             _InfoBanner(
               message: state.errorMessage!,
@@ -71,7 +69,6 @@ class ResultsScreen extends ConsumerWidget {
               onDismiss: notifier.clearError,
             ),
 
-          // ── Контент ──────────────────────────────────────────────────
           Expanded(
             child: switch (state.status) {
               ResultsStatus.loading => const Center(
@@ -114,9 +111,7 @@ class ResultsScreen extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Список результатов
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ResultsList extends StatelessWidget {
   final List<ResultDto> results;
@@ -134,7 +129,6 @@ class _ResultsList extends StatelessWidget {
     required this.onDownloadAudio,
     required this.onDelete,
   });
-
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
@@ -142,7 +136,9 @@ class _ResultsList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, i) => _ResultCard(
         result: results[i],
-        isDownloading: downloadingPdf[results[i].audioId] ?? false,
+        downloadingSummary: downloadingPdf['${results[i].audioId}:summary'] ?? false,
+        downloadingTranscript: downloadingPdf['${results[i].audioId}:transcript'] ?? false,
+        downloadingAudio: downloadingPdf['${results[i].audioId}:audio'] ?? false,
         onDownloadSummary: () => onDownloadSummary(results[i].audioId),
         onDownloadTranscript: () => onDownloadTranscript(results[i].audioId),
         onDownloadAudio: () => onDownloadAudio(results[i].audioId),
@@ -154,7 +150,9 @@ class _ResultsList extends StatelessWidget {
 
 class _ResultCard extends StatelessWidget {
   final ResultDto result;
-  final bool isDownloading;
+  final bool downloadingSummary;
+  final bool downloadingTranscript;
+  final bool downloadingAudio;
   final VoidCallback onDownloadSummary;
   final VoidCallback onDownloadTranscript;
   final VoidCallback onDownloadAudio;
@@ -162,7 +160,9 @@ class _ResultCard extends StatelessWidget {
 
   const _ResultCard({
     required this.result,
-    required this.isDownloading,
+    required this.downloadingSummary,
+    required this.downloadingTranscript,
+    required this.downloadingAudio,
     required this.onDownloadSummary,
     required this.onDownloadTranscript,
     required this.onDownloadAudio,
@@ -190,7 +190,6 @@ class _ResultCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Шапка карточки ──────────────────────────────────────────
           Row(
             children: [
               Container(
@@ -250,31 +249,29 @@ class _ResultCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // ── Workspace ───────────────────────────────────────────────
           _TagRow(label: 'Workspace', value: workspaceLabel),
           const SizedBox(height: 16),
 
-          // ── Кнопки скачивания ───────────────────────────────────────
           Row(
             children: [
               _PdfButton(
                 label: 'Summary PDF',
                 icon: Icons.summarize_rounded,
-                isLoading: isDownloading,
+                isLoading: downloadingSummary,
                 onTap: isDone ? onDownloadSummary : null,
               ),
               const SizedBox(width: 10),
               _PdfButton(
                 label: 'Transcript PDF',
                 icon: Icons.article_rounded,
-                isLoading: isDownloading,
+                isLoading: downloadingTranscript,
                 onTap: isDone ? onDownloadTranscript : null,
               ),
               const SizedBox(width: 10),
               _PdfButton(
                 label: 'Audio',
                 icon: Icons.audio_file_rounded,
-                isLoading: isDownloading,
+                isLoading: downloadingAudio,
                 onTap: (!isDone && !isFailed) ? null : onDownloadAudio,
               ),
             ],
@@ -418,9 +415,7 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Вспомогательные виджеты
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();

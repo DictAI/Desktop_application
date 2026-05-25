@@ -23,7 +23,6 @@ class WorkspacesScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Заголовок + кнопка создания ──────────────────────────────────
           Row(
             children: [
               const Text(
@@ -52,7 +51,6 @@ class WorkspacesScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 32),
 
-          // ── Stub / error баннер ───────────────────────────────────────────
           if (state.errorMessage != null)
             _InfoBanner(
               message: state.errorMessage!,
@@ -60,7 +58,6 @@ class WorkspacesScreen extends ConsumerWidget {
               onDismiss: notifier.clearError,
             ),
 
-          // ── Контент ───────────────────────────────────────────────────────
           Expanded(
             child: switch (state.status) {
               WorkspacesStatus.loading => const Center(
@@ -97,9 +94,7 @@ class WorkspacesScreen extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Grid рабочих пространств
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _WorkspaceGrid extends StatelessWidget {
   final List<WorkspaceDto> workspaces;
@@ -248,9 +243,7 @@ class _WorkspaceMenu extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Диалог создания воркспейса
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _CreateWorkspaceDialog extends StatefulWidget {
   final WorkspacesNotifier notifier;
@@ -396,9 +389,7 @@ class _CreateWorkspaceDialogState
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Вспомогательные виджеты
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _CreateWorkspaceButton extends StatelessWidget {
   final bool isLoading;

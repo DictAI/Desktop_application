@@ -100,7 +100,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Логотип ──────────────────────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -130,7 +129,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
                 const SizedBox(height: 36),
 
-                // ── Табы ─────────────────────────────────────────────────────
                 Container(
                   height: 44,
                   decoration: BoxDecoration(
@@ -159,13 +157,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
                 const SizedBox(height: 28),
 
-                // ── Сообщение об ошибке ───────────────────────────────────────
                 if (authState.errorMessage != null) ...[
                   _ErrorBanner(message: authState.errorMessage!),
                   const SizedBox(height: 16),
                 ],
 
-                // ── Формы ─────────────────────────────────────────────────────
                 SizedBox(
                   height: 260,
                   child: TabBarView(
@@ -201,7 +197,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
                 const SizedBox(height: 8),
 
-                // ── Кнопка submit ─────────────────────────────────────────────
                 _SubmitButton(
                   isLoading: isLoading,
                   label: _tabController.index == 0 ? 'Sign In' : 'Create Account',
@@ -224,9 +219,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Вспомогательные виджеты
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ErrorBanner extends StatelessWidget {
   final String message;
@@ -502,9 +495,7 @@ class _SubmitButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Validators (вынесены как функции — переиспользуются в обеих формах)
-// ─────────────────────────────────────────────────────────────────────────────
 
 String? _validateEmail(String? value) {
   if (value == null || value.trim().isEmpty) return 'Email is required';

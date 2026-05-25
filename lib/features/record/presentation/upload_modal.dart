@@ -67,7 +67,6 @@ class _UploadModalState extends ConsumerState<UploadModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Заголовок ─────────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -88,7 +87,6 @@ class _UploadModalState extends ConsumerState<UploadModal> {
             ),
             const SizedBox(height: 20),
 
-            // ── Drop-зона ─────────────────────────────────────────────────
             DragTarget<List<String>>(
               onWillAcceptWithDetails: (_) {
                 setState(() => _isDragging = true);
@@ -163,7 +161,6 @@ class _UploadModalState extends ConsumerState<UploadModal> {
               ),
             ),
 
-            // ── Выбранный файл ────────────────────────────────────────────
             if (_selectedFile != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -213,7 +210,6 @@ class _UploadModalState extends ConsumerState<UploadModal> {
 
             const SizedBox(height: 20),
 
-            // ── Кнопки ────────────────────────────────────────────────────
             Row(
               children: [
                 Expanded(

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../data/results_api.dart';
 import '../data/dto/result_dto.dart';
 import '../../../core/error/app_exception.dart';
@@ -100,61 +99,56 @@ class ResultsNotifier extends StateNotifier<ResultsState> {
   }
 
   Future<void> downloadSummary(String audioId, String fileName) async {
-    _setDownloading(audioId, true);
+    _setDownloading('$audioId:summary', true);
     try {
       final bytes = await _api.getSummaryPdf(audioId);
       await _saveBytes(bytes, '${fileName}_summary.pdf');
     } on AppException catch (e) {
       state = state.copyWith(errorMessage: e.message);
     } finally {
-      _setDownloading(audioId, false);
+      _setDownloading('$audioId:summary', false);
     }
   }
 
   Future<void> downloadTranscript(String audioId, String fileName) async {
-    _setDownloading(audioId, true);
+    _setDownloading('$audioId:transcript', true);
     try {
       final bytes = await _api.getTranscriptPdf(audioId);
       await _saveBytes(bytes, '${fileName}_transcript.pdf');
     } on AppException catch (e) {
       state = state.copyWith(errorMessage: e.message);
     } finally {
-      _setDownloading(audioId, false);
+      _setDownloading('$audioId:transcript', false);
     }
   }
 
   Future<void> downloadAudio(String audioId) async {
-    _setDownloading(audioId, true);
+    _setDownloading('$audioId:audio', true);
     try {
       final bytes = await _api.getAudio(audioId);
       await _saveBytes(bytes, '${audioId.substring(0, 8)}_audio.mp3');
     } on AppException catch (e) {
       state = state.copyWith(errorMessage: e.message);
     } finally {
-      _setDownloading(audioId, false);
+      _setDownloading('$audioId:audio', false);
     }
   }
 
-  void _setDownloading(String audioId, bool value) {
+  void _setDownloading(String key, bool value) {
     final map = Map<String, bool>.from(state.downloadingPdf);
-    map[audioId] = value;
+    map[key] = value;
     state = state.copyWith(downloadingPdf: map);
   }
 
   Future<void> _saveBytes(List<int> bytes, String fileName) async {
+    final home = Platform.environment['HOME'] ?? '/tmp';
     final dir = Platform.isWindows
         ? '${Platform.environment['USERPROFILE']}\\Downloads'
-        : Platform.isMacOS
-            ? '${Platform.environment['HOME']}/Downloads'
-            : '/tmp';
+        : '$home/Downloads';
+    await Directory(dir).create(recursive: true);
     final file = File('$dir/$fileName');
     await file.writeAsBytes(bytes);
-    if (Platform.isLinux) {
-      await Process.run('xdg-open', [file.path]);
-    } else {
-      final uri = Uri.file(file.path);
-      if (await canLaunchUrl(uri)) await launchUrl(uri);
-    }
+    await Process.run('xdg-open', [dir]);
   }
 
   void clearError() => state = state.copyWith(errorMessage: null, isStubError: false);

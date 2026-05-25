@@ -40,9 +40,7 @@ class WorkspaceDetailScreen extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Основной контент
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DetailContent extends StatelessWidget {
   final WorkspaceDetailState state;
@@ -59,7 +57,6 @@ class _DetailContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Заголовок ──────────────────────────────────────────────────────
         Row(
           children: [
             Container(
@@ -97,25 +94,21 @@ class _DetailContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
 
-        // ── Метаданные ────────────────────────────────────────────────────
         _MetaRow(
           label: 'Created',
           value: ws.createdAt.toLocal().toString().split('.').first,
         ),
         const SizedBox(height: 32),
 
-        // ── Ошибка операции ───────────────────────────────────────────────
         if (state.errorMessage != null)
           _ErrorBanner(
             message: state.errorMessage!,
             onDismiss: notifier.clearError,
           ),
 
-        // ── Библиотека голосов ───────────────────────────────────────────
         _VoiceLibraryCard(profiles: state.voiceProfiles),
         const SizedBox(height: 24),
 
-        // ── Участники ─────────────────────────────────────────────────────
         Row(
           children: [
             const Text(
@@ -167,7 +160,6 @@ class _DetailContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // ── Список участников ─────────────────────────────────────────────
         Expanded(
           child: state.participants.isEmpty
               ? const _EmptyParticipants()
@@ -503,9 +495,7 @@ class _VoiceProfilePicker extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Диалог добавления участника
-// ─────────────────────────────────────────────────────────────────────────────
 
 void _showVoiceProfileDialog(
   BuildContext context, {
@@ -528,9 +518,7 @@ void _showVoiceProfileDialog(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Диалог записи голосового профиля
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _VoiceProfileDialog extends StatefulWidget {
   final String participantId;
@@ -1202,9 +1190,7 @@ class _ParticipantField extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Список участников
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ParticipantList extends StatelessWidget {
   final List<ParticipantDto> participants;
@@ -1468,9 +1454,7 @@ class _ParticipantTileState extends State<_ParticipantTile> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Вспомогательные виджеты
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _EmptyParticipants extends StatelessWidget {
   const _EmptyParticipants();
