@@ -33,7 +33,7 @@ final dioProvider = Provider<Dio>((ref) {
   final storage = ref.read(secureStorageProvider);
   final session = ref.read(sessionNotifierProvider);
   return createDio(
-    baseUrl: 'http://localhost:8000',
+    baseUrl: 'http://193.181.210.199:8000',
     storage: storage,
     onUnauthorized: () async {
       await storage.deleteToken();
