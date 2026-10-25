@@ -2,8 +2,8 @@
 id: TASK-FE-001.01
 plan: PLAN-FE-001
 title: "Согласовать и воспроизвести Flutter/Dart toolchain"
-status: ready
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P0
 readiness_category: A
 phase: "0"
@@ -26,8 +26,9 @@ planned_paths:
 
 Один проверенный совместимый SDK и согласованные ограничения без случайного обновления dependency graph.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Пользователь явно выбрал реализацию .01 и .02 2026-10-25. Эта карточка выполняется
+в ветке `codex/TASK-FE-001.01-toolchain` от `fdd95eb`; другие implementation-задачи
+не выбраны. Commit/push/merge новых результатов этим поручением не разрешены.
 
 ## Context
 
@@ -48,11 +49,11 @@ API: нет новых API.
 
 ## Acceptance criteria
 
-- [ ] Зафиксированы точная версия Flutter с bundled Dart >=3.11, способ получения и требования macOS/Linux; конкретная версия выбрана по реально доступному SDK, не выдумана планом.
-- [ ] pubspec/lock согласованы; предпочтён совместимый SDK с существующим lock, изменения packages только при доказанной необходимости и явном scope.
-- [ ] Сняты исходные analyze/test/format результаты с разделением старых проблем и новых; пустой widget_test не считается покрытием.
-- [ ] Изменения host SDK/установка инструментов выполняются только при разрешённой среде; отсутствие SDK остаётся явным blocker.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Зафиксированы точная версия Flutter с bundled Dart >=3.11, способ получения и требования macOS/Linux; конкретная версия выбрана по реально доступному SDK, не выдумана планом.
+- [x] pubspec/lock согласованы; предпочтён совместимый SDK с существующим lock, изменения packages только при доказанной необходимости и явном scope.
+- [x] Сняты исходные analyze/test/format результаты с разделением старых проблем и новых; пустой widget_test не считается покрытием.
+- [x] Изменения host SDK/установка инструментов выполняются только при разрешённой среде; отсутствие SDK остаётся явным blocker.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
 - [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Implementation notes
@@ -70,20 +71,44 @@ SDK/lock changes ограничены воспроизводимостью, не
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+Cwd: `/Users/verliiar/.codex/worktrees/fe-001-01-toolchain/Desktop_application`.
+2026-10-25, macOS 26.2 arm64. Временный SDK:
+`/private/tmp/dictai-fe-foundation-hdqe2j5k/sdk/flutter` (Flutter 3.41.3,
+Dart 3.11.1); отдельный PUB_CACHE:
+`/private/tmp/dictai-fe-foundation-hdqe2j5k/pub-cache`.
+Flutter-команды выполнялись с `FLUTTER_SUPPRESS_ANALYTICS=true CI=true` и этим
+PUB_CACHE; ниже `flutter`/`dart` — binaries именно этого SDK.
 
 | Command / scenario | Environment | Expected | Actual | Status | Limitation |
 |---|---|---|---|---|---|
-| `flutter --version; dart --version; flutter pub get (только выбранная реализация, проверить diff lock)` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze; flutter test; dart format --output=none --set-exit-if-changed lib test` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Официальные release manifests, SHA-256 macOS arm64 ZIP; `flutter --version --machine`, `dart --version` | Среда выше | Проверенный Flutter с Dart >=3.11 | Flutter 3.41.3 / Dart 3.11.1; revision `48c32af0345e9ad5747f78ddce828c7f795f7159`, SHA совпал | PASS | Системный Flutter 3.38.1 не изменён; временный SDK не входит в Git |
+| `flutter pub get --enforce-lockfile`; SHA-256 и package graph comparison lock с базой fdd95eb | Среда выше, отдельный cache; 128 cached packages скопированы, 5 недостающих получены из pub.dev | Те же dependency pins | Exit 0; 137 packages, lock побайтово неизменен | PASS | Сообщения о 90 newer versions не являются обновлением; lock SDK minima производятся resolved packages, требования root дополнительно заданы pubspec |
+| `flutter analyze --no-pub` | Среда выше, исходный lib/test не менялся | Снять честный baseline | Exit 1: 13 prefer_const_constructors info; 0 errors, 0 warnings | FAIL baseline | Замечания исходного кода не исправлялись; это не зелёный analyze |
+| `flutter test --no-pub` | Среда выше, исходный test/widget_test.dart — 0 bytes | Снять честный baseline | Exit 1: Undefined name main в generated test listener | FAIL baseline | Исходный пустой тест не является покрытием; тестовая основа — отдельная .06 |
+| `dart format --output=none --set-exit-if-changed lib test` | Dart 3.11.1 | Проверить формат без записи | Exit 1: 42 файла проверены, 32 отличия | FAIL baseline | --output=none ничего не записал, несмотря на Changed в stdout |
+| `git diff --check`, полный tracked/new-file diff; SHA-256 source/platform/test и lock относительно fdd95eb | Этот worktree, Python/Git | Только разрешённый scope | Код приложения, тесты, platform files и lock не менялись | PASS self-check | Повторная финальная проверка и независимый review отдельно; не runtime smoke |
+| macOS/Linux build, devices/capture, Keychain, backend E2E | Требуют своего host/стенда и выбранного scope | Не заявлять лишнюю проверку | Не запускались | NOT RUN | Вне выбора toolchain; .36/.37 и другие соответствующие задачи |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Реализация .01 подготовлена в отдельной ветке `codex/TASK-FE-001.01-toolchain`
+от `fdd95eb`. Изменены только root SDK constraints в `pubspec.yaml`, эта карточка
+и coordinator records; добавлен [TOOLCHAIN.ru.md](../../development/TOOLCHAIN.ru.md).
+`pubspec.lock` разрешён scope, но менять его не потребовалось. SHA-256 lock:
+`d1e569ba3b1d2b319ee34fbc8cfb87f2db21cc10f85b6c791c5468759985def0`.
+
+Подтверждены SDK 3.41.3/Dart 3.11.1 и восстановление зависимостей без upgrade.
+Analyze/test/format baseline остаётся FAIL с указанными причинами; реализация
+не объявляет приложение verified. Функциональный код/DTO/API/платформы/исходный
+test не исправлялись. Логи команд сохранены временно в
+`/private/tmp/dictai-fe-foundation-hdqe2j5k/checks/`, результаты изложены выше
+и в toolchain-документе, поэтому потеря временного каталога не удаляет evidence.
+
+Status review допускается из implemented при явном перечне failed checks.
+Независимый [REVIEW-FE-001.01-03](../reviews/REVIEW-FE-001.01-03.md) завершён
+агентом /root/review_fe_foundation_01_02: actionable findings нет. Reviewer
+повторил version/offline enforce-lockfile и все три baseline FAIL, подтвердил
+checksum, dependency graph, source immutability и согласованность records.
+Отчёт reviewed/complete не объявляет приложение verified.
+Accepted не выставлен; решение о приёмке baseline-ограничений — за пользователем.
+Другие задачи не выполняются. Commit/push/merge новых результатов не выполнены.
