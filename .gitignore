@@ -44,3 +44,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .claude/
+
+# Local secrets and private overrides. Never add credentials to tracked launch.json.
+.env
+.env.*
+!.env.example
+!.env.template
+.vscode/*.local.json
+.vscode/*.local.env
+.vscode/.env
+.vscode/.env.*

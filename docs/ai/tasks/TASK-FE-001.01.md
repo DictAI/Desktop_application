@@ -28,7 +28,8 @@ planned_paths:
 
 Пользователь явно выбрал реализацию .01 и .02 2026-10-25. Эта карточка выполняется
 в ветке `codex/TASK-FE-001.01-toolchain` от `fdd95eb`; другие implementation-задачи
-не выбраны. Commit/push/merge новых результатов этим поручением не разрешены.
+не выбраны. Первое поручение не разрешало commit/push/merge. Затем пользователь
+отдельно поручил объединить и опубликовать .01 и .02 в main; см. active-plan.
 
 ## Context
 
@@ -67,7 +68,8 @@ Owner назначается при выборе задачи, не агенто
 Сохранять Riverpod/GoRouter/Dio и ручные DTO. Не добавлять неуказанные endpoints,
 новые dependencies/permissions/deployment behavior либо «попутные» исправления.
 SDK/lock changes ограничены воспроизводимостью, не общим обновлением libraries.
-Не изменять backend или BACKEND_* snapshots. Нет commit/push/merge/release разрешения.
+Не изменять backend или BACKEND_* snapshots. Публикация выбранных .01/.02 в main
+разрешена отдельно; следующие задачи, rewrite истории и release не разрешены.
 
 ## Verification
 
@@ -111,4 +113,6 @@ Status review допускается из implemented при явном пере
 checksum, dependency graph, source immutability и согласованность records.
 Отчёт reviewed/complete не объявляет приложение verified.
 Accepted не выставлен; решение о приёмке baseline-ограничений — за пользователем.
-Другие задачи не выполняются. Commit/push/merge новых результатов не выполнены.
+Другие задачи не выполняются. Исходная реализация сохранена в commit `8cc1906`.
+Отдельно разрешённая интеграция с .02 и публикация в main отражаются в active-plan;
+при интеграции implementation/evidence сохраняются, статус review не меняется.
