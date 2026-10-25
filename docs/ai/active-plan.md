@@ -1,14 +1,15 @@
-# Текущий этап: план адаптации frontend
+# Текущий этап: выполнение foundation-задачи .02
 
-Обновлено: 2026-10-25. Активен [PLAN-FE-001](plans/PLAN-FE-001.md), status draft.
-**Только планирование: selected_tasks=[]; ни одна implementation-задача не выбрана.**
-Пользователь поручил полный аудит, план и atomic FE-карточки; старое «планы пока
-не создаются» в истории ниже относится к предыдущему этапу.
+Обновлено: 2026-10-25. Пользователь явно выбрал .01 и .02. Этот checkout выполняет
+только TASK-FE-001.02 в ветке `codex/TASK-FE-001.02-secrets` от `fdd95eb`.
+Owner — primary-agent; local PLAN-FE-001 in_progress, selected_tasks=[TASK-FE-001.02].
+Peer .01 выполняется отдельно в `codex/TASK-FE-001.01-toolchain`.
+Остальные 40 задач не выбраны. Main и backend не меняются, accepted не выставляется.
 
 ## Результат и категории
 
 Созданы [source-аудит](research/FRONTEND_BACKEND_GAP_ANALYSIS.ru.md) и **42 задачи**:
-**A=23, B=16, C=3**. Статусы: ready=2, draft=37, blocked=3.
+**A=23, B=16, C=3**. Local статусы: review=1, ready=1, draft=37, blocked=3.
 A — локальная основа/существующий wire, B — сквозной UI/state с mocks по известным
 DTO, C — внешние backend/operator gates. Категория не отменяет FE depends_on.
 
@@ -23,12 +24,12 @@ DTO, C — внешние backend/operator gates. Категория не отм
 
 ## Выбор следующих задач
 
-Сейчас по FE graph готовы к выбору только
-[TASK-FE-001.01](tasks/TASK-FE-001.01.md) и [TASK-FE-001.02](tasks/TASK-FE-001.02.md).
+В этой ветке выбрана TASK-FE-001.02; peer .01 локально остаётся ready/unassigned,
+но её реализация назначена в отдельном worktree. Все зависимости обеих пусты.
 Рекомендуемые первые семь по порядку:
 
 - [TASK-FE-001.01](tasks/TASK-FE-001.01.md): Согласовать и воспроизвести Flutter/Dart toolchain; ready, prerequisites none.
-- [TASK-FE-001.02](tasks/TASK-FE-001.02.md): Удалить значения секретов из tracked-конфигурации; ready, prerequisites none.
+- [TASK-FE-001.02](tasks/TASK-FE-001.02.md): Удалить значения секретов из tracked-конфигурации; review, owner primary-agent, prerequisites none.
 - [TASK-FE-001.03](tasks/TASK-FE-001.03.md): Ограничить HTTP-логирование и редактировать чувствительные данные; draft, prerequisites 01.
 - [TASK-FE-001.04](tasks/TASK-FE-001.04.md): Перевести session storage на защищённое хранилище; draft, prerequisites 01.
 - [TASK-FE-001.05](tasks/TASK-FE-001.05.md): Настроить явную конфигурацию gateway и сетевых политик; draft, prerequisites 01, 02, 03.
@@ -38,6 +39,40 @@ DTO, C — внешние backend/operator gates. Категория не отм
 Перед исполнением пользователь выбирает ID; coordinator назначает owner.
 Непринятые prerequisites и backend evidence не выполняются автоматически.
 После реализации нужны checks и независимое review кода; review плана его не заменяет.
+
+## Scope выбранной реализации и координация
+
+- `.01`: `pubspec.yaml`, `pubspec.lock`, будущий `docs/development/TOOLCHAIN.ru.md`,
+  `docs/ai/tasks/TASK-FE-001.01.md`; worktree
+  `/Users/verliiar/.codex/worktrees/fe-001-01-toolchain/Desktop_application`.
+- `.02`: `.vscode/launch.json`, `.gitignore`, будущие `.vscode/launch.example.json`,
+  `docs/development/SECRETS.ru.md`, `docs/ai/tasks/TASK-FE-001.02.md`; worktree
+  `/Users/verliiar/.codex/worktrees/fe-001-02-secrets/Desktop_application`.
+- Обе реализации выполняет primary-agent последовательно; только coordinator
+  меняет общие PLAN/active-plan. Local карточки/таблица согласованы в каждой ветке;
+  будущая интеграция общих records потребует сверки, worktree не отменяет её.
+- REVIEW-FE-001.01-03 и REVIEW-FE-001.02-01 завершены независимым
+  /root/review_fe_foundation_01_02 в своих worktrees, reviewed/complete.
+  Reviewer изменил только два назначенных отчёта; actionable findings нет.
+- Commit/push/merge новых результатов не поручены. Старый docs commit остаётся
+  локальным после GitHub 403. Проверки и результаты фиксируются в своей карточке.
+
+## Результат выбранной карточки
+
+Локальная .02 подготовлена и прошла
+[независимый review REVIEW-FE-001.02-01](reviews/REVIEW-FE-001.02-01.md).
+Status остаётся review: пользователь ещё не принял результат, accepted нет.
+Credential/model defines удалены из текущей конфигурации ветки; JSON, scan и
+ignore checks PASS. Source/API/DTO/dependencies не менялись. Credential остаётся
+в истории/main/peer; владелец отдельно выполняет revoke/rotation. Без его
+evidence security release gate .42 остаётся открыт.
+Инструкция — [SECRETS.ru.md](../development/SECRETS.ru.md).
+
+Primary tracked files и весь backend сохранены. Появившийся во время работы
+посторонний untracked `.vscode/settings.json` в primary checkout не менялся
+и не входит в задачи. Diff, scopes/42-card DAG и ссылки проверены.
+Новые результаты не закоммичены, не отправлены и не объединены.
+Общие records peer-веток требуют сверки при будущей явно разрешённой интеграции.
 
 ## Backend-срез и блокировки
 
@@ -75,7 +110,7 @@ accepted. Task owner остаётся unassigned до выбора. Сущест
 |---|---|---|---|
 | PLAN-FE-001 | [plans/PLAN-FE-001.md](plans/PLAN-FE-001.md) | primary-agent | created |
 | TASK-FE-001.01 | [tasks/TASK-FE-001.01.md](tasks/TASK-FE-001.01.md) | unassigned | created |
-| TASK-FE-001.02 | [tasks/TASK-FE-001.02.md](tasks/TASK-FE-001.02.md) | unassigned | created |
+| TASK-FE-001.02 | [tasks/TASK-FE-001.02.md](tasks/TASK-FE-001.02.md) | primary-agent | created |
 | TASK-FE-001.03 | [tasks/TASK-FE-001.03.md](tasks/TASK-FE-001.03.md) | unassigned | created |
 | TASK-FE-001.04 | [tasks/TASK-FE-001.04.md](tasks/TASK-FE-001.04.md) | unassigned | created |
 | TASK-FE-001.05 | [tasks/TASK-FE-001.05.md](tasks/TASK-FE-001.05.md) | unassigned | created |
@@ -120,8 +155,10 @@ accepted. Task owner остаётся unassigned до выбора. Сущест
 | REVIEW-FE-001.01-02 | [reviews/REVIEW-FE-001.01-02.md](reviews/REVIEW-FE-001.01-02.md) | /root/review_fe_plan_full_v2 | created |
 | REVIEW-FE-001.04-01 | [reviews/REVIEW-FE-001.04-01.md](reviews/REVIEW-FE-001.04-01.md) | /root/review_fe_plan_full_v2 | created |
 | REVIEW-FE-SETUP-01 | [reviews/REVIEW-FE-SETUP-01.md](reviews/REVIEW-FE-SETUP-01.md) | previous bootstrap reviewer | created |
+| REVIEW-FE-001.01-03 | `reviews/REVIEW-FE-001.01-03.md` (создан в peer toolchain worktree) | /root/review_fe_foundation_01_02 | created |
+| REVIEW-FE-001.02-01 | [reviews/REVIEW-FE-001.02-01.md](reviews/REVIEW-FE-001.02-01.md) | /root/review_fe_foundation_01_02 | created |
 
-## Текущая корректировка F01 P2 — 2026-10-25
+## История корректировки F01 P2 — 2026-10-25
 
 Пользователь выбрал только исправление документации по F01 из
 [REVIEW-FE-001.01-02](reviews/REVIEW-FE-001.01-02.md). Coordinator — writer

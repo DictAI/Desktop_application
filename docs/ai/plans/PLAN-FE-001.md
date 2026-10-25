@@ -1,9 +1,9 @@
 ---
 id: PLAN-FE-001
 title: "Адаптация DictAI Flutter к целевому batch backend"
-status: draft
+status: in_progress
 owner: primary-agent
-selected_tasks: []
+selected_tasks: ["TASK-FE-001.02"]
 frontend_commit: b45c8c4dfe927a872182c7508fa85e01f83a9f0c
 backend_commit: f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6
 ---
@@ -19,9 +19,10 @@ TXT/PDF/original, библиотеке и корректному delete/logout �
 незавершённые backend quality/cutover задачи. Наличие service code не равно
 production readiness.
 
-**Сейчас разрешены только аудит, план и карточки. selected_tasks пуст; реализация
-начинается после явного выбора пользователя.** План draft, не принят автоматически.
-Категории и ready не являются разрешением выполнить задачу или её зависимости.
+**2026-10-25 пользователь выбрал .01 и .02. Этот checkout реализует только .02
+в своей ветке; peer .01 выполняется отдельно.** Остальные 40 задач не выбраны.
+План in_progress в local scope; accepted и разрешения commit/push/merge
+новых результатов автоматически не выдаются.
 
 Исключены: voice profiles/embeddings, mandatory confirm, legacy compatibility,
 live/chat/public sharing/speaker editing/user cancel/reprocess/provider selector,
@@ -172,7 +173,7 @@ Verification, Result и backend/API traceability. Полные write scopes — 
 | ID | Title | Category | Priority | Status | Dependencies | Owner | Write scope |
 |---|---|---|---|---|---|---|---|
 | [TASK-FE-001.01](../tasks/TASK-FE-001.01.md) | Согласовать и воспроизвести Flutter/Dart toolchain | A | P0 | ready | none | unassigned | Точные пути в карточке |
-| [TASK-FE-001.02](../tasks/TASK-FE-001.02.md) | Удалить значения секретов из tracked-конфигурации | A | P0 | ready | none | unassigned | Точные пути в карточке |
+| [TASK-FE-001.02](../tasks/TASK-FE-001.02.md) | Удалить значения секретов из tracked-конфигурации | A | P0 | review | none | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.03](../tasks/TASK-FE-001.03.md) | Ограничить HTTP-логирование и редактировать чувствительные данные | A | P0 | draft | 01 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.04](../tasks/TASK-FE-001.04.md) | Перевести session storage на защищённое хранилище | A | P0 | draft | 01 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.05](../tasks/TASK-FE-001.05.md) | Настроить явную конфигурацию gateway и сетевых политик | A | P0 | draft | 01, 02, 03 | unassigned | Точные пути в карточке |
@@ -216,7 +217,8 @@ Verification, Result и backend/API traceability. Полные write scopes — 
 
 ### Первые задачи и выбор
 
-Сейчас по FE-графу ready только **.01 и .02**; остальные draft/blocked.
+В этом checkout выбрана **.02**; peer .01 локально остаётся ready,
+а выполняется в своей ветке. Остальные draft/blocked; зависимости не приняты автоматически.
 Рекомендуемый первый пакет порядка работ: **.01 → .02 → .03 → .04 → .05 → .06 → .07**.
 Это предложение для выбора: .03/.04/.06 требуют принятой .01,
 .05 также .02/.03, .07 — .03/.05/.06. Порядок допускает независимое выполнение
@@ -227,7 +229,8 @@ polling/journal, оба UX и results. Не реализовывать весь 
 
 ## Координация файлов
 
-Coordinator выдаёт FE ID и меняет active-plan; owner задач пока unassigned.
+Coordinator выдаёт FE ID и меняет active-plan; owner local .02 — primary-agent,
+остальные local карточки пока unassigned. Peer-ветка учтена в active-plan.
 Назначается один implementer на выбранную карточку. Новые файлы помечены
 planned_paths; файл может быть создан prerequisite до старта зависимой задачи.
 Scope включает собственную task-карточку. Если prerequisite уже удалил retired
