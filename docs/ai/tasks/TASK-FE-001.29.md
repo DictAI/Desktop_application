@@ -1,15 +1,15 @@
 ---
 id: TASK-FE-001.29
 plan: PLAN-FE-001
-title: "Показать canonical transcript и recording-local speakers"
+title: "Показать canonical transcript с исходными Speaker ID/labels"
 status: draft
 owner: unassigned
 priority: P1
 readiness_category: B
 phase: "3"
-depends_on: ["TASK-FE-001.22","TASK-FE-001.28"]
-backend_tasks: ["TASK-002.05","TASK-002.10","TASK-002.11","TASK-002.15"]
-api_contracts: ["R04","§8"]
+depends_on: ["TASK-FE-001.22", "TASK-FE-001.28"]
+backend_tasks: ["TASK-002.05", "TASK-002.10", "TASK-002.11", "TASK-002.15"]
+api_contracts: ["R04", "§8"]
 blocked_by: []
 scope:
   - "lib/features/results/presentation/transcript_view.dart"
@@ -20,16 +20,16 @@ planned_paths:
   - "lib/features/results/presentation/transcript_view.dart"
   - "test/features/results/transcript_view_test.dart"
   - "lib/features/results/presentation/result_detail_screen.dart"
+delivery_stage: current
 ---
 
-# TASK-FE-001.29: Показать canonical transcript и recording-local speakers
+# TASK-FE-001.29: Показать canonical transcript с исходными Speaker ID/labels
 
 ## Goal
 
-Читаемый длинный transcript с таймкодами, Speaker N/UNKNOWN, overlap и optional words.
+Показать canonical transcript с исходными Speaker ID/labels backend, без переименования и frontend overlay.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Текущий этап. Реализация после завершения пересмотра и независимого review, в порядке DAG.
 
 ## Context
 
@@ -39,23 +39,34 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Нет текстового canonical viewer; старые speaker fragments требуют имён/email.
+**Исходное состояние:** Нет текстового canonical viewer; старые speaker fragments требуют имён/email.
 
-**Целевое:** Читаемый длинный transcript с таймкодами, Speaker N/UNKNOWN, overlap и optional words.
+**Целевое:** Показать canonical transcript с исходными Speaker ID/labels backend, без переименования и frontend overlay.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.22](TASK-FE-001.22.md), [TASK-FE-001.28](TASK-FE-001.28.md).
 Backend traceability: TASK-002.05, TASK-002.10, TASK-002.11, TASK-002.15
 API: R04, §8.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: исходные Speaker ID/labels, UNKNOWN/timings; убрать .43 и имя-overlay.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Таймкоды преобразуются из microseconds, labels не связываются с contacts и не переносятся между recordings.
-- [ ] UNKNOWN/overlap и unavailable word timing показаны явно; no_speech — отдельный успешный empty state.
-- [ ] Большой transcript до отдельного artifact limit 50 MiB не строит все widgets одновременно; scrolling/selection не блокируют UI; performance evidence с synthetic data.
-- [ ] Нет rename/merge/edit speakers, artificial revisions или live animation, выдаваемой за реальное распознавание.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Отображаются исходные canonical speaker_id/label (Speaker 1, Speaker 2…), UNKNOWN и порядок/связи segments без изменения.
+- [ ] Нет frontend aliases, пользовательских имён, contact projection, локального store или зависимости от .43/.46/.50.
+- [ ] Таймкоды из integer microseconds, overlap/unavailable timing явны; no_speech — успешный empty state.
+- [ ] Большой реальный canonical до artifact limit 50 MiB использует ленивый UI, selection/scrolling проверяются synthetic fixtures того же wire.
+- [ ] Нет canonical merge/split/правки speaker IDs, fake processing versions/live animation; нет rename/select-contact/save controls.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
@@ -72,15 +83,14 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План будущих проверок текущей реализации, сейчас **NOT RUN** в коррекции документации. Cwd — frontend, pinned SDK после .01; .01 не переоткрывается.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/results/transcript_view_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test test/features/results/transcript_view_test.dart` | Исходные backend labels, UNKNOWN/overlap/timings/no_speech, без aliases/contact projection | NOT RUN; тестовые fixtures только действующего контракта |
+| Scoped format и analyze при реализации Dart | Нет новых проблем выбранного scope | NOT RUN; исходный unrelated baseline не исправляется автоматически |
+| Real platform/live checks где релевантны | Реальный результат, не mock evidence | NOT RUN; .36/.37/.40, без будущих assignments |
+| Links/DAG/hash/diff и независимый review коррекции | Текущая очередь без future prereqs, код сохранён | Coordinator evidence в PLAN/active-plan |
 
 ## Result
 

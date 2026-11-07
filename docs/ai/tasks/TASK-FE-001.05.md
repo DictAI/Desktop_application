@@ -2,14 +2,14 @@
 id: TASK-FE-001.05
 plan: PLAN-FE-001
 title: "Настроить явную конфигурацию gateway и сетевых политик"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P0
 readiness_category: A
 phase: "0"
-depends_on: ["TASK-FE-001.01","TASK-FE-001.02","TASK-FE-001.03"]
-backend_tasks: ["TASK-002.16","TASK-002.28","TASK-002.37"]
-api_contracts: ["§2","§9"]
+depends_on: ["TASK-FE-001.01", "TASK-FE-001.02", "TASK-FE-001.03"]
+backend_tasks: ["TASK-002.16", "TASK-002.28", "TASK-002.37"]
+api_contracts: ["§2", "§9"]
 blocked_by: []
 scope:
   - "lib/core/network/api_client.dart"
@@ -25,6 +25,7 @@ planned_paths:
   - "docs/development/ENVIRONMENT.ru.md"
   - "test/core/config/app_config_test.dart"
   - ".vscode/launch.example.json"
+delivery_stage: current
 ---
 
 # TASK-FE-001.05: Настроить явную конфигурацию gateway и сетевых политик
@@ -33,8 +34,8 @@ planned_paths:
 
 Environment config без секретов в binary, корректный origin и отдельные upload/download/status timeouts.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Реализация явно выбрана пользователем 2026-10-26 в наборе .03–.07.
+Переход внутри набора разрешён после checks/review; вне набора работы не выбираются.
 
 ## Context
 
@@ -44,7 +45,7 @@ Environment config без секретов в binary, корректный origi
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Gateway URL захардкожен в providers; launch dart-define не читаются; единый receive timeout 30 s.
+**Исходное состояние:** Gateway URL захардкожен в providers; launch dart-define не читаются; единый receive timeout 30 s.
 
 **Целевое:** Environment config без секретов в binary, корректный origin и отдельные upload/download/status timeouts.
 
@@ -53,14 +54,22 @@ FE prerequisites: [TASK-FE-001.01](TASK-FE-001.01.md), [TASK-FE-001.02](TASK-FE-
 Backend traceability: TASK-002.16, TASK-002.28, TASK-002.37
 API: §2, §9.
 
+## Этап и решение — 2026-11-02
+
+Сохранить gateway/TLS/origin/timeouts; только существующие backend API.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
+Готовая реализация/review и отмеченные AC сохраняются без повторной реализации; изменение только планирования.
+
 ## Acceptance criteria
 
-- [ ] API base URL читается из документированного dart-define; release не использует скрытый HTTP IP/default, HTTPS обязателен вне явно заданного local dev.
-- [ ] Проверяются origin/relative URLs: JWT не уходит на произвольные host из result URL; внешние ссылки не считаются signed public downloads.
-- [ ] Timeout и retry policy различают upload 15-min server context, polling и большие downloads; не обещается обход более короткого proxy timeout.
-- [ ] Взаимодействие идёт только через gateway; MinIO/NATS/gRPC/private metrics не становятся frontend dependencies.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] API base URL читается из документированного dart-define; release не использует скрытый HTTP IP/default, HTTPS обязателен вне явно заданного local dev.
+- [x] Проверяются origin/relative URLs: JWT не уходит на произвольные host из result URL; внешние ссылки не считаются signed public downloads.
+- [x] Timeout и retry policy различают upload 15-min server context, polling и большие downloads; не обещается обход более короткого proxy timeout.
+- [x] Взаимодействие идёт только через gateway; MinIO/NATS/gRPC/private metrics не становятся frontend dependencies.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Implementation notes
 
@@ -77,20 +86,36 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+Cwd `/Users/verliiar/Desktop_application`, macOS arm64, Flutter 3.41.3/Dart 3.11.1
+из `/private/tmp/dictai-fe-foundation-hdqe2j5k/sdk/flutter`, PUB_CACHE
+`/private/tmp/dictai-fe-foundation-hdqe2j5k/pub-cache`; существующие lock/pins сохранены.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/core/config/app_config_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Actual | Status | Limitation |
+|---|---|---|---|
+| `flutter test --no-pub test/core/config/app_config_test.dart test/core/network/logging_test.dart` | 21 tests passed (17 config/policy + 4 logging regression) | PASS | Только synthetic/local fixtures, backend не вызывался |
+| `dart analyze lib/core/storage/secure_storage.dart lib/core/network/auth_interceptor.dart lib/core/config/app_config.dart lib/core/network/api_client.dart lib/shared/providers/providers.dart test/core/storage test/core/config test/core/network` | No issues found | PASS | Изменённый scope .03–.05 |
+| `dart format --output=none --set-exit-if-changed lib/core/config/app_config.dart lib/core/network/api_client.dart lib/shared/providers/providers.dart test/core/config/app_config_test.dart` | Формат применён; итоговый check в batch evidence | PASS | Только выбранные файлы |
+| `flutter analyze --no-pub` | 13 прежних prefer_const_constructors info, 0 errors/warnings | FAIL | Неизменённые файлы вне scope, исходный долг не устранён |
+| Redirect integration в app_config_test | Два ephemeral loopback HTTP servers: Bearer только первому, target requests=0 даже при caller followRedirects=true | PASS | Только локальный тест; не deployment/TLS проверка |
+| Независимый review | [REVIEW-FE-001.05-01](../reviews/REVIEW-FE-001.05-01.md) reviewed/complete, включая delta fixture; findings P0–P3 нет | PASS | Не пользовательская приёмка |
+| Live gateway, private CA и Linux/native build | Не запускались | NOT RUN | Нового API/CA/security bypass нет; native signing blocker .04 отдельно |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Реализованы AppConfig/API_BASE_URL, явный debug-only HTTP loopback opt-in,
+HTTP_DIAGNOSTICS с release-deny, единый appConfigProvider. Удалён скрытый IP/default.
+Gateway policy проверяет полный origin до чтения JWT, запрещает чужой host/port,
+HTTP downgrade/userInfo/scheme-relative/backslash URLs и автоматические redirects.
+Client имеет раздельные connect/ordinary/upload/download timeouts, не выполняет
+автоматические retries и не обещает обход proxy timeouts.
+
+Изменены api_client/shared providers, оба launch JSON только для явного local dev
+opt-in; добавлены config, 17 tests и [инструкция окружения](../../development/ENVIRONMENT.ru.md).
+Принятая .02 не переоткрыта: секреты не возвращены, исходный её scope не повторялся.
+Параметры не содержат private CA, токены или credentials; TLS verification сохранён.
+Без API_BASE_URL конфигурация явно отказывает при создании клиента, UI настроек не добавлен.
+Feature clients/DTO/backend не менялись. Проверки кода и независимый review пройдены; не accepted, commit/push/merge не выполнялись.
+
+Delta: test fixture использует официальные plugin mocks и прежний публичный storage API,
+не зависит от новых migration interfaces .04. Повторные 21 tests/analyze/format PASS,
+reviewer проверил delta отдельно. Подпись/OS blocker .04 не выдаётся за resolved.

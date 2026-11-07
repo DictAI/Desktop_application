@@ -3,6 +3,11 @@ class LoginResponse {
 
   const LoginResponse({required this.token});
 
-  factory LoginResponse.fromJson(Map<String, dynamic> json) =>
-      LoginResponse(token: json['token'] as String);
+  factory LoginResponse.fromJson(Map<String, dynamic> json) {
+    final token = json['token'];
+    if (token is! String || token.trim().isEmpty) {
+      throw const FormatException('Invalid login response');
+    }
+    return LoginResponse(token: token);
+  }
 }

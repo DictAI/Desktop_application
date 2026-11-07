@@ -7,8 +7,8 @@ owner: unassigned
 priority: P1
 readiness_category: A
 phase: "5"
-depends_on: ["TASK-FE-001.33","TASK-FE-001.35","TASK-FE-001.36","TASK-FE-001.37","TASK-FE-001.38"]
-backend_tasks: ["TASK-002.17","TASK-002.24","TASK-002.31"]
+depends_on: ["TASK-FE-001.33", "TASK-FE-001.35", "TASK-FE-001.36", "TASK-FE-001.37", "TASK-FE-001.38"]
+backend_tasks: ["TASK-002.17", "TASK-002.24", "TASK-002.31"]
 api_contracts: ["§9"]
 blocked_by: []
 scope:
@@ -18,6 +18,7 @@ scope:
 planned_paths:
   - "docs/release/BATCH_RELEASE_CHECKLIST.ru.md"
   - "docs/release/CONFIGURATION.example.md"
+delivery_stage: current
 ---
 
 # TASK-FE-001.41: Подготовить локальный batch release candidate и инструкцию выпуска
@@ -26,8 +27,9 @@ planned_paths:
 
 Воспроизводимый локальный candidate/checklist без публикации, самовольного version bump или cloud deployment.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -37,7 +39,7 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Version 1.0.0+1 и платформенные templates есть; release process/конфигурационный checklist не зафиксированы.
+**Исходное состояние:** Version 1.0.0+1 и платформенные templates есть; release process/конфигурационный checklist не зафиксированы.
 
 **Целевое:** Воспроизводимый локальный candidate/checklist без публикации, самовольного version bump или cloud deployment.
 
@@ -46,39 +48,38 @@ FE prerequisites: [TASK-FE-001.33](TASK-FE-001.33.md), [TASK-FE-001.35](TASK-FE-
 Backend traceability: TASK-002.17, TASK-002.24, TASK-002.31
 API: §9.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: candidate/checklist полноценной текущей версии, без mock-only release.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Документированы build commands, SDK/package lock, environment policy, платформенные prerequisites и безопасное хранение credentials.
-- [ ] Release config не содержит ключей/HTTP production default/log bodies; все mandatory batch paths и отсутствующие функции описаны честно.
-- [ ] Локальные artifacts/checksums и known limitations проверяемы, не добавлены в Git; версия/signing/notarization/installer distribution требуют отдельного решения.
-- [ ] Наличие candidate не означает разрешения release или backend readiness; final gate в .42.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Candidate — полноценная текущая версия с real API, а не mock demo; Speaker N и отсутствие rename честно указаны.
+- [ ] SDK/lock/config, host/audio/storage prerequisites и безопасный ввод credentials документированы, без ключей/default HTTP/log bodies.
+- [ ] Artifacts/checksums/known limitations проверяемы и вне Git; distribution/signing/notarization/version/release требуют отдельного решения.
+- [ ] Наличие candidate не закрывает .39/.40/.42 и не требует будущих assignments/именованного экспорта.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
-Scope/planned_paths в frontmatter — точные разрешаемые пути будущей реализации,
-включая эту карточку. Пока отсутствующие пути явно planned; некоторые создаются
-зависимостью раньше. Удалённый prerequisite retired файл не воссоздавать.
-Общие файлы — один writer; порядок DAG и координация PLAN-FE-001 обязательны.
-Owner назначается при выборе задачи, не агентом задним числом после изменений.
-
-Сохранять Riverpod/GoRouter/Dio и ручные DTO. Не добавлять неуказанные endpoints,
-новые dependencies/permissions/deployment behavior либо «попутные» исправления.
-Если проверки обнаружат проблему вне scope, сохранить evidence и предложить отдельное решение владельцу.
-Не изменять backend или BACKEND_* snapshots. Нет commit/push/merge/release разрешения.
+Выполнять только current scope по существующим API и точным frontmatter paths. Fakes относятся к tests реального wire/оборудования, не к runtime бизнес-данным будущего backend. Не добавлять layers/packages/неподтверждённые endpoints или player/editor abstractions на вырост. Один writer на shared paths, порядок DAG обязателен. Backend и BACKEND_* snapshots read-only. Текущая коррекция — документация; после review разрешено продолжение выбранного current этапа. Commit/push/merge запрещены.
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План проверок текущего scope, **NOT RUN** в этой коррекции документации.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `Повторяемая локальная сборка по .36/.37 и review release checklist` | Указанный в criteria host/стенд; credentials вне Git | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `Redacted config/artifact scan; git diff --check` | Указанный в criteria host/стенд; credentials вне Git | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Статус / граница |
+|---|---|
+| Предусмотренные scope проверки текущих реальных сценариев/host/стенда | NOT RUN; planned tests/docs не создаются этой коррекцией |
+| Формат/analyze только при реализации Dart, platform/live smoke при наличии разрешённой среды | NOT RUN; fakes не подтверждают native/model/стенд |
+| Полный diff, ссылки/DAG/paths и независимый review документации | Выполняются coordinator, результаты в PLAN/active-plan |
 
 ## Result
 

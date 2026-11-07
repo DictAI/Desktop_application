@@ -3,13 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
+import '../../workspace/presentation/workspaces_screen.dart';
+import '../../workspace/data/dto/workspace_dto.dart';
 import 'anonymous_record_notifier.dart';
 import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 
 class RecordScreen extends ConsumerStatefulWidget {
-  const RecordScreen({super.key});
+  const RecordScreen({super.key, this.workspaceId, this.workspace});
+  final String? workspaceId;
+  final WorkspaceDto? workspace;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
@@ -19,35 +23,70 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   bool _anonymousMode = false;
 
   @override
+  void initState() {
+    super.initState();
+    _scheduleWorkspaceContext();
+  }
+
+  @override
+  void didUpdateWidget(covariant RecordScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.workspaceId != widget.workspaceId ||
+        oldWidget.workspace != widget.workspace) {
+      _scheduleWorkspaceContext();
+    }
+  }
+
+  void _scheduleWorkspaceContext() {
+    final id = widget.workspaceId;
+    final workspace = widget.workspace;
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          id != widget.workspaceId ||
+          workspace != widget.workspace) {
+        return;
+      }
+      final notifier = ref.read(recordNotifierProvider.notifier);
+      final anon = ref.read(anonRecordNotifierProvider);
+      if (notifier.hasActiveOperation ||
+          anon.isActive ||
+          anon.status == AnonStatus.uploading ||
+          anon.status == AnonStatus.confirming) {
+        notifier.setWorkspaceContextError(
+          'Сначала завершите активную запись или отправку. Выбранное рабочее пространство не изменено.',
+        );
+        return;
+      }
+      if (!RegExp(
+            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          ).hasMatch(id) ||
+          workspace == null ||
+          workspace.workspaceId != id) {
+        notifier.setWorkspaceContextError(
+          'Контекст рабочего пространства не подтверждён. Откройте его и нажмите «Новая запись».',
+        );
+        return;
+      }
+      if (notifier.selectWorkspace(id, workspace.name)) {
+        setState(() => _anonymousMode = false);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(recordNotifierProvider);
     final notifier = ref.read(recordNotifierProvider.notifier);
     final anonState = ref.watch(anonRecordNotifierProvider);
-    final isAnonRecording = _anonymousMode && anonState.status == AnonStatus.recording;
-    final isEffectivelyActive = isAnonRecording || (!_anonymousMode && state.isActive);
-
-    String? blockReason;
-    if (!_anonymousMode && state.selectedWorkspaceId != null) {
-      final detail =
-          ref.watch(workspaceDetailProvider(state.selectedWorkspaceId!));
-      if (detail.status == DetailStatus.loaded) {
-        if (detail.participants.isEmpty) {
-          blockReason = 'Add at least one participant to this workspace before recording.';
-        } else {
-          final missing = detail.participants
-              .where((p) => detail.voiceProfileStatus[p.participantId] != true)
-              .map((p) => p.name)
-              .toList();
-          if (missing.isNotEmpty) {
-            blockReason = 'Voice profile missing for: ${missing.join(', ')}.\nGo to Workspaces to set them up.';
-          }
-        }
-      }
-    }
+    final isAnonRecording =
+        _anonymousMode && anonState.status == AnonStatus.recording;
+    final isEffectivelyActive =
+        isAnonRecording || (!_anonymousMode && state.isActive);
 
     final canRecord = _anonymousMode
         ? !isEffectivelyActive
-        : blockReason == null && !state.isActive && state.selectedWorkspaceId != null;
+        : !state.isActive && state.selectedWorkspaceId != null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 40),
@@ -55,137 +94,103 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-                  IgnorePointer(
-                    ignoring: isEffectivelyActive,
-                    child: _AnonymousToggle(
-                      value: _anonymousMode,
-                      onChanged: (v) => setState(() => _anonymousMode = v),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  _RecordButton(
-                    status: isAnonRecording ? RecordStatus.recording : state.status,
-                    anonymous: _anonymousMode,
-                    onTap: isEffectivelyActive
-                        ? () => _handleStop(notifier)
-                        : canRecord
-                            ? () => _handleStart(notifier)
-                            : null,
-                    onPause: (!_anonymousMode && state.isActive)
-                        ? () => notifier.togglePause()
-                        : null,
-                  ),
-                  const SizedBox(height: 32),
-
-                  _RecordStatusWidget(status: state.status),
-                  const SizedBox(height: 32),
-
-                  _DeviceSelector(
-                    devices: state.inputDevices,
-                    selected: state.selectedDevice,
-                    onSelect: notifier.selectDevice,
-                    onRefresh: notifier.refreshDevices,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _SystemAudioCheckbox(
-                    value: state.captureSystemAudio,
-                    onChanged: notifier.setCaptureSystemAudio,
-                  ),
-                  const SizedBox(height: 24),
-
-                  AnimatedOpacity(
-                    opacity: _anonymousMode ? 0.3 : 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: IgnorePointer(
-                      ignoring: _anonymousMode,
-                      child: Column(
-                        children: [
-                          _WorkspaceSelector(
-                            selectedName: state.selectedWorkspaceName,
-                            onSelect: (id, name) =>
-                                notifier.selectWorkspace(id, name),
-                            onClear: notifier.clearWorkspace,
-                          ),
-                          if (blockReason != null && !state.isActive) ...[
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: 360,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.errorSubtle,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: AppColors.error.withValues(alpha: 0.4)),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Icon(Icons.warning_amber_rounded,
-                                        color: AppColors.error, size: 16),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        blockReason,
-                                        style: const TextStyle(
-                                            color: AppColors.error,
-                                            fontSize: 12,
-                                            height: 1.4),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  _UploadAudioButton(
-                    onTap: () => _showUploadModal(context, anonymous: _anonymousMode),
-                    isUploading: state.status == RecordStatus.uploading,
-                  ),
-
-                  if (state.status == RecordStatus.uploading) ...[
-                    const SizedBox(height: 20),
-                    _UploadProgressBar(progress: state.uploadProgress),
-                  ],
-
-                  if (state.status == RecordStatus.done) ...[
-                    const SizedBox(height: 20),
-                    _UploadSuccess(
-                      audioId: state.uploadedAudioId!,
-                      onReset: notifier.reset,
-                    ),
-                  ],
-
-                  if (state.errorMessage != null) ...[
-                    const SizedBox(height: 20),
-                    _ErrorBanner(
-                      message: state.errorMessage!,
-                      onDismiss: notifier.reset,
-                    ),
-                  ],
-                ],
+            IgnorePointer(
+              ignoring: isEffectivelyActive,
+              child: _AnonymousToggle(
+                value: _anonymousMode,
+                onChanged: (v) => setState(() => _anonymousMode = v),
               ),
             ),
-          );
-        }
+            const SizedBox(height: 28),
 
-        void _handleStart(RecordNotifier notifier) {
+            _RecordButton(
+              status: isAnonRecording ? RecordStatus.recording : state.status,
+              anonymous: _anonymousMode,
+              onTap: isEffectivelyActive
+                  ? () => _handleStop(notifier)
+                  : canRecord
+                  ? () => _handleStart(notifier)
+                  : null,
+              onPause: (!_anonymousMode && state.isActive)
+                  ? () => notifier.togglePause()
+                  : null,
+            ),
+            const SizedBox(height: 32),
+
+            _RecordStatusWidget(status: state.status),
+            const SizedBox(height: 32),
+
+            _DeviceSelector(
+              devices: state.inputDevices,
+              selected: state.selectedDevice,
+              onSelect: notifier.selectDevice,
+              onRefresh: notifier.refreshDevices,
+            ),
+            const SizedBox(height: 16),
+
+            _SystemAudioCheckbox(
+              value: state.captureSystemAudio,
+              onChanged: notifier.setCaptureSystemAudio,
+            ),
+            const SizedBox(height: 24),
+
+            AnimatedOpacity(
+              opacity: _anonymousMode ? 0.3 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: IgnorePointer(
+                ignoring: _anonymousMode,
+                child: _WorkspaceSelector(
+                  selectedName: state.selectedWorkspaceName,
+                  onSelect: notifier.selectWorkspace,
+                  onClear: notifier.clearWorkspace,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            _UploadAudioButton(
+              onTap: () => _showUploadModal(context, anonymous: _anonymousMode),
+              isUploading: state.status == RecordStatus.uploading,
+            ),
+
+            if (state.status == RecordStatus.uploading) ...[
+              const SizedBox(height: 20),
+              _UploadProgressBar(progress: state.uploadProgress),
+            ],
+
+            if (state.status == RecordStatus.done) ...[
+              const SizedBox(height: 20),
+              _UploadSuccess(
+                audioId: state.uploadedAudioId!,
+                onReset: notifier.reset,
+              ),
+            ],
+
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: 20),
+              _ErrorBanner(
+                message: state.errorMessage!,
+                onDismiss: notifier.reset,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleStart(RecordNotifier notifier) {
     if (_anonymousMode) {
       final recordState = ref.read(recordNotifierProvider);
-      ref.read(anonRecordNotifierProvider.notifier).startRecording(
-            device: recordState.selectedDevice,
-            captureSystemAudio: recordState.captureSystemAudio,
-          );
+      notifier.runStartOperation(
+        () => ref
+            .read(anonRecordNotifierProvider.notifier)
+            .startRecording(
+              device: recordState.selectedDevice,
+              captureSystemAudio: recordState.captureSystemAudio,
+            ),
+      );
     } else {
       notifier.toggleRecording();
     }
@@ -283,8 +288,9 @@ class _AnonymousToggle extends StatelessWidget {
                 child: AnimatedAlign(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
-                  alignment:
-                      value ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     width: 18,
                     height: 18,
@@ -368,10 +374,10 @@ class _RecordButtonState extends State<_RecordButton>
     final color = isRecording
         ? AppColors.error
         : isPaused
-            ? AppColors.accent
-            : isBlocked
-                ? AppColors.surfaceElevated.withValues(alpha: 0.5)
-                : idleColor;
+        ? AppColors.accent
+        : isBlocked
+        ? AppColors.surfaceElevated.withValues(alpha: 0.5)
+        : idleColor;
 
     return Column(
       children: [
@@ -393,7 +399,8 @@ class _RecordButtonState extends State<_RecordButton>
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: AppColors.error.withValues(
-                              alpha: 0.4 * (1 - _pingController.value)),
+                            alpha: 0.4 * (1 - _pingController.value),
+                          ),
                           width: 2,
                         ),
                       ),
@@ -430,8 +437,7 @@ class _RecordButtonState extends State<_RecordButton>
           GestureDetector(
             onTap: widget.onPause,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(14),
@@ -441,9 +447,7 @@ class _RecordButtonState extends State<_RecordButton>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isPaused
-                        ? Icons.play_arrow_rounded
-                        : Icons.pause_rounded,
+                    isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                     color: AppColors.textPrimary,
                     size: 18,
                   ),
@@ -475,11 +479,11 @@ class _RecordStatusWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, sub) = switch (status) {
       RecordStatus.recording => ('Recording...', 'Tap stop to finish'),
-      RecordStatus.paused    => ('Paused', 'Tap stop to finish & upload'),
+      RecordStatus.paused => ('Paused', 'Tap stop to finish & upload'),
       RecordStatus.uploading => ('Uploading...', ''),
-      RecordStatus.done      => ('Upload complete', ''),
-      RecordStatus.error     => ('', ''), // error shown in banner below
-      _                      => ('Ready to Record', 'Tap the button to start'),
+      RecordStatus.done => ('Upload complete', ''),
+      RecordStatus.error => ('', ''), // error shown in banner below
+      _ => ('Ready to Record', 'Tap the button to start'),
     };
 
     if (label.isEmpty) return const SizedBox.shrink();
@@ -512,7 +516,6 @@ class _RecordStatusWidget extends StatelessWidget {
 // Выбор воркспейса
 
 // Переключатель источника звука
-
 
 class _SystemAudioCheckbox extends StatelessWidget {
   final bool value;
@@ -552,19 +555,24 @@ class _SystemAudioCheckbox extends StatelessWidget {
                   ),
                 ),
                 child: value
-                    ? const Icon(Icons.check_rounded,
-                        size: 12, color: Colors.white)
+                    ? const Icon(
+                        Icons.check_rounded,
+                        size: 12,
+                        color: Colors.white,
+                      )
                     : null,
               ),
               const SizedBox(width: 12),
-              const Icon(Icons.speaker_rounded,
-                  size: 15, color: AppColors.textSecondary),
+              const Icon(
+                Icons.speaker_rounded,
+                size: 15,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   'Also capture system audio',
-                  style: TextStyle(
-                      color: AppColors.textPrimary, fontSize: 14),
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
                 ),
               ),
             ],
@@ -573,8 +581,6 @@ class _SystemAudioCheckbox extends StatelessWidget {
       ),
     );
   }
-
-
 }
 
 // Выбор устройства записи
@@ -613,16 +619,18 @@ class _DeviceSelector extends StatelessWidget {
               const Spacer(),
               GestureDetector(
                 onTap: onRefresh,
-                child: const Icon(Icons.refresh_rounded,
-                    color: AppColors.textSecondary, size: 16),
+                child: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppColors.textSecondary,
+                  size: 16,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           if (devices.isEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 18, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
@@ -630,8 +638,7 @@ class _DeviceSelector extends StatelessWidget {
               ),
               child: const Text(
                 'No devices found — grant mic permission first',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
             )
           else
@@ -641,14 +648,21 @@ class _DeviceSelector extends StatelessWidget {
                 isExpanded: true,
                 dropdownColor: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: AppColors.textSecondary, size: 20),
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
                 style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 15),
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                ),
                 hint: const Text(
                   'Default device',
                   style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 15),
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                  ),
                 ),
                 items: [
                   const DropdownMenuItem<InputDevice?>(
@@ -661,43 +675,42 @@ class _DeviceSelector extends StatelessWidget {
                   ...devices.map(
                     (d) => DropdownMenuItem<InputDevice?>(
                       value: d,
-                      child: Text(
-                        d.label,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(d.label, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
                 selectedItemBuilder: (_) => [
-                  _deviceItem('Default device',
-                      color: AppColors.textSecondary),
+                  _deviceItem('Default device', color: AppColors.textSecondary),
                   ...devices.map((d) => _deviceItem(d.label)),
                 ],
                 onChanged: onSelect,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: const [
-                  Icon(Icons.info_outline_rounded,
-                      size: 13, color: AppColors.accent),
-                  SizedBox(width: 6),
-                  Text(
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 13,
+                  color: AppColors.accent,
+                ),
+                SizedBox(width: 6),
+                Flexible(
+                  child: Text(
                     'BlackHole detected — system audio will be captured',
-                    style: TextStyle(
-                        color: AppColors.accent, fontSize: 12),
+                    style: TextStyle(color: AppColors.accent, fontSize: 12),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _deviceItem(String label,
-      {Color color = AppColors.textPrimary}) {
+  Widget _deviceItem(String label, {Color color = AppColors.textPrimary}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
       decoration: BoxDecoration(
@@ -715,7 +728,6 @@ class _DeviceSelector extends StatelessWidget {
   }
 }
 
-
 class _WorkspaceSelector extends ConsumerWidget {
   final String? selectedName;
   final void Function(String id, String name) onSelect;
@@ -728,12 +740,18 @@ class _WorkspaceSelector extends ConsumerWidget {
   });
 
   void _showCreateWorkspaceDialog(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      builder: (_) => _CreateWorkspaceDialog(
-        onCreated: (id, name) => onSelect(id, name),
-      ),
+    final notifier = ref.read(workspacesNotifierProvider.notifier);
+    showWorkspaceNameDialog(
+      context,
+      title: 'New Workspace',
+      actionLabel: 'Create',
+      onSubmit: (name) async {
+        final workspace = await notifier.create(name);
+        if (workspace == null) return false;
+        onSelect(workspace.workspaceId, workspace.name);
+        return true;
+      },
+      errorMessage: () => notifier.errorMessage,
     );
   }
 
@@ -788,8 +806,7 @@ class _WorkspaceDropdown extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_WorkspaceDropdown> createState() =>
-      _WorkspaceDropdownState();
+  ConsumerState<_WorkspaceDropdown> createState() => _WorkspaceDropdownState();
 }
 
 class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
@@ -806,8 +823,7 @@ class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
         GestureDetector(
           onTap: () => setState(() => _open = !_open),
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(16),
@@ -828,8 +844,11 @@ class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
                 AnimatedRotation(
                   turns: _open ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary, size: 20),
+                  child: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
                 ),
               ],
             ),
@@ -857,46 +876,71 @@ class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
                         ),
                       ),
                     )
-                  : workspaces.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: Text(
-                            'No workspaces yet',
-                            style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 14),
+                  : workspacesState.status == WorkspacesStatus.error
+                  ? Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: [
+                          Text(
+                            workspacesState.errorMessage ??
+                                'Не удалось загрузить рабочие пространства.',
                           ),
-                        )
-                      : Column(
-                          children: workspaces.map((ws) {
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              onTap: () {
-                                widget.onSelect(ws.workspaceId, ws.name);
-                                setState(() => _open = false);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 18, vertical: 12),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        ws.name,
-                                        style: const TextStyle(
-                                          color: AppColors.textPrimary,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ),
-                                    if (widget.selectedName == ws.name)
-                                      const Icon(Icons.check_rounded,
-                                          color: AppColors.accent, size: 16),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                          TextButton(
+                            onPressed: ref
+                                .read(workspacesNotifierProvider.notifier)
+                                .load,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : workspaces.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Text(
+                        'No workspaces yet',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
                         ),
+                      ),
+                    )
+                  : Column(
+                      children: workspaces.map((ws) {
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            widget.onSelect(ws.workspaceId, ws.name);
+                            setState(() => _open = false);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    ws.name,
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                if (widget.selectedName == ws.name)
+                                  const Icon(
+                                    Icons.check_rounded,
+                                    color: AppColors.accent,
+                                    size: 16,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
             ),
           ),
         ],
@@ -935,16 +979,14 @@ class _UploadAudioButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isUploading;
 
-  const _UploadAudioButton(
-      {required this.onTap, required this.isUploading});
+  const _UploadAudioButton({required this.onTap, required this.isUploading});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: isUploading ? null : onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
@@ -953,8 +995,11 @@ class _UploadAudioButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.upload_rounded,
-                color: AppColors.textPrimary, size: 18),
+            const Icon(
+              Icons.upload_rounded,
+              color: AppColors.textPrimary,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               isUploading ? 'Uploading...' : 'Upload Audio',
@@ -1022,25 +1067,29 @@ class _UploadSuccess extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.successSubtle,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: AppColors.success.withValues(alpha: 0.4)),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded,
-              color: AppColors.success, size: 20),
+          const Icon(
+            Icons.check_circle_rounded,
+            color: AppColors.success,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(
+          const Expanded(
             child: Text(
               'Uploaded successfully! Processing has started.',
-              style: const TextStyle(
-                  color: AppColors.success, fontSize: 13),
+              style: TextStyle(color: AppColors.success, fontSize: 13),
             ),
           ),
           GestureDetector(
             onTap: onReset,
-            child: const Icon(Icons.close_rounded,
-                color: AppColors.success, size: 18),
+            child: const Icon(
+              Icons.close_rounded,
+              color: AppColors.success,
+              size: 18,
+            ),
           ),
         ],
       ),
@@ -1064,191 +1113,31 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.errorSubtle,
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.error, size: 20),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.error,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                  color: AppColors.error, fontSize: 13),
+              style: const TextStyle(color: AppColors.error, fontSize: 13),
             ),
           ),
           GestureDetector(
             onTap: onDismiss,
-            child: const Icon(Icons.close_rounded,
-                color: AppColors.error, size: 18),
+            child: const Icon(
+              Icons.close_rounded,
+              color: AppColors.error,
+              size: 18,
+            ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// Диалог создания воркспейса
-
-class _CreateWorkspaceDialog extends ConsumerStatefulWidget {
-  final void Function(String id, String name) onCreated;
-  const _CreateWorkspaceDialog({required this.onCreated});
-
-  @override
-  ConsumerState<_CreateWorkspaceDialog> createState() =>
-      _CreateWorkspaceDialogState();
-}
-
-class _CreateWorkspaceDialogState
-    extends ConsumerState<_CreateWorkspaceDialog> {
-  final _nameCtrl = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _loading = false;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() => _loading = true);
-    final ws = await ref
-        .read(workspacesNotifierProvider.notifier)
-        .create(_nameCtrl.text.trim());
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (ws != null) {
-      widget.onCreated(ws.workspaceId, ws.name);
-      Navigator.of(context).pop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.surfaceElevated),
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'New Workspace',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded,
-                        color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _nameCtrl,
-                autofocus: true,
-                onFieldSubmitted: (_) => _submit(),
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'Workspace name',
-                  hintStyle:
-                      const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: AppColors.surfaceElevated,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Please enter a workspace name';
-                  }
-                  if (v.trim().length < 2) {
-                    return 'Name must be at least 2 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _loading
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: AppColors.surfaceElevated),
-                        foregroundColor: AppColors.textPrimary,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accent,
-                        disabledBackgroundColor:
-                            AppColors.surfaceElevated,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: _loading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textPrimary,
-                              ),
-                            )
-                          : const Text(
-                              'Create',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -7,9 +7,9 @@ owner: unassigned
 priority: P1
 readiness_category: B
 phase: "3"
-depends_on: ["TASK-FE-001.09","TASK-FE-001.22","TASK-FE-001.24","TASK-FE-001.25","TASK-FE-001.27","TASK-FE-001.30"]
-backend_tasks: ["TASK-002.14","TASK-002.15","TASK-002.16"]
-api_contracts: ["R03","R04","R05"]
+depends_on: ["TASK-FE-001.09", "TASK-FE-001.22", "TASK-FE-001.24", "TASK-FE-001.25", "TASK-FE-001.27", "TASK-FE-001.30", "TASK-FE-001.49"]
+backend_tasks: ["TASK-002.14", "TASK-002.15", "TASK-002.16"]
+api_contracts: ["R03", "R04", "R05"]
 blocked_by: []
 scope:
   - "lib/features/results/presentation/result_detail_screen.dart"
@@ -24,6 +24,7 @@ planned_paths:
   - "lib/features/results/presentation/result_detail_screen.dart"
   - "lib/features/results/presentation/result_detail_notifier.dart"
   - "test/features/results/result_detail_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.28: Добавить result detail route с независимыми состояниями
@@ -32,8 +33,9 @@ planned_paths:
 
 FE route /results/:audioId?job_id=... и общий экран canonical/summary/document availability.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -43,23 +45,35 @@ FE route /results/:audioId?job_id=... и общий экран canonical/summary
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Detail route/transcript view отсутствуют; ordinary done и anonymous modal не ведут к одному результату.
+**Исходное состояние:** Detail route/transcript view отсутствуют; ordinary done и anonymous modal не ведут к одному результату.
 
 **Целевое:** FE route /results/:audioId?job_id=... и общий экран canonical/summary/document availability.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
-FE prerequisites: [TASK-FE-001.09](TASK-FE-001.09.md), [TASK-FE-001.22](TASK-FE-001.22.md), [TASK-FE-001.24](TASK-FE-001.24.md), [TASK-FE-001.25](TASK-FE-001.25.md), [TASK-FE-001.27](TASK-FE-001.27.md), [TASK-FE-001.30](TASK-FE-001.30.md).
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
+FE prerequisites: [TASK-FE-001.09](TASK-FE-001.09.md), [TASK-FE-001.22](TASK-FE-001.22.md), [TASK-FE-001.24](TASK-FE-001.24.md), [TASK-FE-001.25](TASK-FE-001.25.md), [TASK-FE-001.27](TASK-FE-001.27.md), [TASK-FE-001.30](TASK-FE-001.30.md), [TASK-FE-001.49](TASK-FE-001.49.md).
 Backend traceability: TASK-002.14, TASK-002.15, TASK-002.16
 API: R03, R04, R05.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: единый detail с canonical/summary/docs; нет формы или unavailable заглушки назначения.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Маршрут использует audio_id и optional job_id, guards существующего GoRouter; FE path не выдается за новый backend meeting API.
-- [ ] Показываются queued/running, transcript ready+summary pending/failed, no-speech, terminal failure/cancelled/404/503; повторы безопасны.
-- [ ] Summary выводится по существующему summary.txt/document API, canonical independently; нет обещания доступной summary при list done.
-- [ ] Upload обеих форм и library открывают один detail; back navigation не порождает duplicate upload/poll.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] После 202 обеих форм показан waiting state; после валидного canonical — реальный transcript с исходными labels, без промежуточного editor.
+- [ ] Canonical, summary и documents независимы; отсутствие original не скрывает transcript. .48 подключает current ready notice/переход, не именование.
+- [ ] Route использует audio_id и optional job_id с существующим GoRouter guard; FE path не backend API.
+- [ ] queued/running/202 terminal/summary pending или failed/no_speech/404/503 имеют реальные состояния и безопасные действия.
+- [ ] Summary получается существующим document API, list done не обещает её готовности.
+- [ ] Upload/library используют один detail; Back не порождает duplicate upload/poll. Кнопок несуществующей backend возможности нет.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
@@ -76,15 +90,14 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План будущих проверок текущей реализации, сейчас **NOT RUN** в коррекции документации. Cwd — frontend, pinned SDK после .01; .01 не переоткрывается.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/results/result_detail_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test test/features/results/result_detail_test.dart` | Acceptance criteria текущего реального API и безопасные failure/recovery сценарии | NOT RUN; тестовые fixtures только действующего контракта |
+| Scoped format и analyze при реализации Dart | Нет новых проблем выбранного scope | NOT RUN; исходный unrelated baseline не исправляется автоматически |
+| Real platform/live checks где релевантны | Реальный результат, не mock evidence | NOT RUN; .36/.37/.40, без будущих assignments |
+| Links/DAG/hash/diff и независимый review коррекции | Текущая очередь без future prereqs, код сохранён | Coordinator evidence в PLAN/active-plan |
 
 ## Result
 

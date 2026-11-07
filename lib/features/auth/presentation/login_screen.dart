@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -54,19 +56,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   void _handleLogin() {
     if (!_loginFormKey.currentState!.validate()) return;
-    ref.read(authNotifierProvider.notifier).login(
+    ref
+        .read(authNotifierProvider.notifier)
+        .login(
           email: _loginEmailCtrl.text,
           password: _loginPasswordCtrl.text,
-          onSuccess: () => context.go('/record'),
+          onSuccess: () {
+            if (mounted) context.go('/record');
+          },
         );
   }
 
   void _handleRegister() {
     if (!_registerFormKey.currentState!.validate()) return;
-    ref.read(authNotifierProvider.notifier).register(
+    ref
+        .read(authNotifierProvider.notifier)
+        .register(
           email: _regEmailCtrl.text,
           password: _regPasswordCtrl.text,
           onSuccess: () {
+            if (!mounted) return;
             // После успешной регистрации — переключаем на вкладку Login
             _loginEmailCtrl.text = _regEmailCtrl.text;
             _tabController.animateTo(0);
@@ -199,7 +208,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                 _SubmitButton(
                   isLoading: isLoading,
-                  label: _tabController.index == 0 ? 'Sign In' : 'Create Account',
+                  label: _tabController.index == 0
+                      ? 'Sign In'
+                      : 'Create Account',
                   onPressed: isLoading
                       ? null
                       : () {
@@ -236,8 +247,11 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.error, size: 18),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.error,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -350,9 +364,9 @@ class _RegisterForm extends StatelessWidget {
             _AppTextField(
               controller: passwordCtrl,
               label: 'Password',
-              hint: 'Min. 8 characters',
+              hint: 'Minimum 8 UTF-8 bytes',
               obscureText: !passwordVisible,
-              validator: _validatePassword,
+              validator: _validateNewPassword,
               textInputAction: TextInputAction.next,
               suffixIcon: IconButton(
                 icon: Icon(
@@ -370,22 +384,24 @@ class _RegisterForm extends StatelessWidget {
               hint: '••••••••',
               obscureText: !confirmVisible,
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Please confirm your password';
-              if (v != passwordCtrl.text) return 'Passwords do not match';
-              return null;
-            },
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => onSubmit?.call(),
-            suffixIcon: IconButton(
-              icon: Icon(
-                confirmVisible ? Icons.visibility_off : Icons.visibility,
-                color: AppColors.textSecondary,
-                size: 20,
+                if (v == null || v.isEmpty) {
+                  return 'Please confirm your password';
+                }
+                if (v != passwordCtrl.text) return 'Passwords do not match';
+                return null;
+              },
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => onSubmit?.call(),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  confirmVisible ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+                onPressed: onToggleConfirm,
               ),
-              onPressed: onToggleConfirm,
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );
@@ -440,8 +456,10 @@ class _AppTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             suffixIcon: suffixIcon,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ],
@@ -506,6 +524,14 @@ String? _validateEmail(String? value) {
 
 String? _validatePassword(String? value) {
   if (value == null || value.isEmpty) return 'Password is required';
-  if (value.length < 8) return 'Password must be at least 8 characters';
+  return null;
+}
+
+String? _validateNewPassword(String? value) {
+  final missing = _validatePassword(value);
+  if (missing != null) return missing;
+  if (utf8.encode(value!).length < 8) {
+    return 'Password must be at least 8 UTF-8 bytes';
+  }
   return null;
 }

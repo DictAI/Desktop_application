@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+
 import '../../../core/error/app_exception.dart';
+import '../../../core/network/api_error_mapper.dart';
 import 'dto/workspace_dto.dart';
 import 'dto/participant_dto.dart';
 
@@ -7,131 +9,119 @@ final class WorkspaceApi {
   final Dio _dio;
   WorkspaceApi(this._dio);
 
-  Future<List<WorkspaceDto>> getWorkspaces({int page = 1, int limit = 20}) async {
-    try {
-      final response = await _dio.get(
+  Future<List<WorkspaceDto>> getWorkspaces({
+    int page = 1,
+    int limit = 20,
+  }) async => (await getWorkspacesPage(page: page, limit: limit)).data;
+
+  Future<WorkspacePage> getWorkspacesPage({int page = 1, int limit = 20}) {
+    if (page < 1 || limit < 1 || limit > 100) {
+      throw const ValidationException('Недопустимые параметры страницы.');
+    }
+    return _perform(
+      () => _dio.get(
         '/workspaces/',
         queryParameters: {'page': page, 'limit': limit},
+      ),
+      (data) => WorkspacePage.fromJson(_object(data)),
+    );
+  }
+
+  Future<WorkspaceDto> createWorkspace(String name) => _perform(
+    () => _dio.post('/workspaces/', data: {'name': name}),
+    (data) => WorkspaceDto.fromJson(_object(data)),
+  );
+
+  Future<WorkspaceDto> getWorkspace(String workspaceId) => _perform(
+    () => _dio.get(_workspacePath(workspaceId)),
+    (data) => WorkspaceDto.fromJson(_object(data)),
+  );
+
+  Future<WorkspaceDto> updateWorkspace(String workspaceId, String name) =>
+      _perform(
+        () => _dio.put(_workspacePath(workspaceId), data: {'name': name}),
+        (data) => WorkspaceDto.fromJson(_object(data)),
       );
-      final data = response.data as Map<String, dynamic>;
-      final list = data['data'] as List<dynamic>;
-      return list
-          .map((e) => WorkspaceDto.fromJson(e as Map<String, dynamic>))
+
+  Future<void> deleteWorkspace(String workspaceId) =>
+      _perform(() => _dio.delete(_workspacePath(workspaceId)), (_) {});
+
+  Future<List<ParticipantDto>> getParticipants(String workspaceId) => _perform(
+    () => _dio.get('${_workspacePath(workspaceId)}/participants'),
+    (data) {
+      if (data == null) return const <ParticipantDto>[];
+      if (data is! List) throw const FormatException('Expected contacts array');
+      return data
+          .map((item) => ParticipantDto.fromJson(_object(item)))
           .toList();
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  Future<WorkspaceDto> createWorkspace(String name) async {
-    try {
-      final response = await _dio.post(
-        '/workspaces/',
-        data: {'name': name},
-      );
-      return WorkspaceDto.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  Future<WorkspaceDto> getWorkspace(String workspaceId) async {
-    try {
-      final response = await _dio.get('/workspaces/$workspaceId');
-      return WorkspaceDto.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  Future<WorkspaceDto> updateWorkspace(String workspaceId, String name) async {
-    try {
-      final response = await _dio.put(
-        '/workspaces/$workspaceId',
-        data: {'name': name},
-      );
-      return WorkspaceDto.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  Future<void> deleteWorkspace(String workspaceId) async {
-    try {
-      await _dio.delete('/workspaces/$workspaceId');
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  Future<List<ParticipantDto>> getParticipants(String workspaceId) async {
-    try {
-      final response =
-          await _dio.get('/workspaces/$workspaceId/participants');
-      final list = (response.data as List<dynamic>?) ?? [];
-      return list
-          .map((e) => ParticipantDto.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
+    },
+  );
 
   Future<ParticipantDto> addParticipant({
     required String workspaceId,
     required String name,
     required String email,
-  }) async {
-    try {
-      final response = await _dio.post(
-        '/workspaces/$workspaceId/participants',
-        data: {'name': name, 'email': email},
-      );
-      return ParticipantDto.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
+  }) => _perform(
+    () => _dio.post(
+      '${_workspacePath(workspaceId)}/participants',
+      data: {'name': name, 'email': email},
+    ),
+    (data) => ParticipantDto.fromJson(_object(data)),
+  );
 
   Future<ParticipantDto> updateParticipant({
     required String workspaceId,
     required String participantId,
     required String name,
     required String email,
-  }) async {
-    try {
-      final response = await _dio.put(
-        '/workspaces/$workspaceId/participants/$participantId',
-        data: {'name': name, 'email': email},
-      );
-      return ParticipantDto.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _mapError(e);
-    }
-  }
+  }) => _perform(
+    () => _dio.put(
+      _participantPath(workspaceId, participantId),
+      data: {'name': name, 'email': email},
+    ),
+    (data) => ParticipantDto.fromJson(_object(data)),
+  );
 
   Future<void> deleteParticipant({
     required String workspaceId,
     required String participantId,
-  }) async {
+  }) => _perform(
+    () => _dio.delete(_participantPath(workspaceId, participantId)),
+    (_) {},
+  );
+
+  static String _workspacePath(String id) =>
+      '/workspaces/${Uri.encodeComponent(id)}';
+  static String _participantPath(String workspace, String participant) =>
+      '${_workspacePath(workspace)}/participants/${Uri.encodeComponent(participant)}';
+
+  static Map<String, dynamic> _object(Object? data) {
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('Expected JSON object');
+    }
+    return data;
+  }
+
+  Future<T> _perform<T>(
+    Future<Response<dynamic>> Function() request,
+    T Function(Object?) decode,
+  ) async {
     try {
-      await _dio.delete(
-        '/workspaces/$workspaceId/participants/$participantId',
-      );
-    } on DioException catch (e) {
-      throw _mapError(e);
+      return decode((await request()).data);
+    } on DioException catch (error) {
+      // Preserve safe local storage failures from the common AuthInterceptor.
+      final local = error.error;
+      if (local is AppException) throw local;
+      throw ApiErrorMapper.fromDio(error) ?? _invalidResponse();
+    } on FormatException {
+      throw _invalidResponse();
+    } on TypeError {
+      throw _invalidResponse();
     }
   }
 
-  AppException _mapError(DioException e) => switch (e.response?.statusCode) {
-        400 => ValidationException(
-            (e.response?.data as Map?)?['error'] as String? ?? 'Bad request',
-          ),
-        401 => const UnauthorizedException(),
-        403 => const ValidationException('Access denied'),
-        404 => const NotFoundException('Workspace not found'),
-        _ => ServerException(
-            (e.response?.data as Map?)?['error'] as String? ?? 'Server error',
-          ),
-      };
+  static ApiFailure _invalidResponse() => ApiFailure(
+    'Сервер вернул некорректные данные рабочего пространства.',
+    kind: ApiFailureKind.invalidResponse,
+  );
 }

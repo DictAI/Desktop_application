@@ -6,16 +6,18 @@ import '../../features/record/presentation/record_screen.dart';
 import '../../features/workspace/presentation/workspaces_screen.dart';
 import '../../features/workspace/presentation/workspace_detail_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
-import '../../shared/providers/providers.dart';
+import '../../features/auth/presentation/auth_notifier.dart';
 import 'auth_listenable.dart';
+import '../../features/workspace/data/dto/workspace_dto.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/record',
     refreshListenable: AuthListenable(ref),
     redirect: (context, state) async {
-      final storage = ref.read(secureStorageProvider);
-      final hasToken = await storage.hasToken();
+      final hasToken = await ref
+          .read(authNotifierProvider.notifier)
+          .hasValidSession();
       final onLogin = state.matchedLocation == '/login';
 
       if (!hasToken && !onLogin) return '/login';
@@ -23,20 +25,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (_, __) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
           GoRoute(
             path: '/record',
-            pageBuilder: (_, __) => const NoTransitionPage(child: RecordScreen()),
+            pageBuilder: (_, state) => NoTransitionPage(
+              child: RecordScreen(
+                workspaceId: state.uri.queryParameters['workspaceId'],
+                workspace: state.extra is WorkspaceDto
+                    ? state.extra as WorkspaceDto
+                    : null,
+              ),
+            ),
           ),
           GoRoute(
             path: '/workspaces',
-            pageBuilder: (_, __) => const NoTransitionPage(child: WorkspacesScreen()),
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: WorkspacesScreen()),
             routes: [
               GoRoute(
                 path: ':workspaceId',
@@ -50,7 +57,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/results',
-            pageBuilder: (_, __) => const NoTransitionPage(child: ResultsScreen()),
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: ResultsScreen()),
           ),
         ],
       ),

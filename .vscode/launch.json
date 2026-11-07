@@ -8,6 +8,9 @@
       "program": "lib/main.dart",
       "args": [
         "--dart-define=API_BASE_URL=http://localhost:8000"
+      ],
+      "toolArgs": [
+        "--dart-define=ALLOW_INSECURE_LOCALHOST=true"
       ]
     }
   ]

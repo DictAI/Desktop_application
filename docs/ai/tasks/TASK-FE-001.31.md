@@ -7,9 +7,9 @@ owner: unassigned
 priority: P1
 readiness_category: B
 phase: "3"
-depends_on: ["TASK-FE-001.29","TASK-FE-001.30"]
-backend_tasks: ["TASK-002.14","TASK-002.15","TASK-002.16"]
-api_contracts: ["R05","U04"]
+depends_on: ["TASK-FE-001.29", "TASK-FE-001.30", "TASK-FE-001.48"]
+backend_tasks: ["TASK-002.14", "TASK-002.15", "TASK-002.16"]
+api_contracts: ["R05", "U04"]
 blocked_by: []
 scope:
   - "lib/features/results/presentation/results_notifier.dart"
@@ -22,6 +22,7 @@ planned_paths:
   - "lib/features/results/data/export_service.dart"
   - "test/features/results/export_service_test.dart"
   - "lib/features/results/presentation/result_detail_screen.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.31: Сделать экспорт TXT/PDF/WAV и локальное открытие кроссплатформенными
@@ -30,8 +31,9 @@ planned_paths:
 
 Независимые действия TXT/PDF/original с корректными именами, атомарным save и платформенным open.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -41,23 +43,34 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Сохраняются только PDF и audio.mp3 в Downloads, xdg-open вызывается даже на macOS; кнопки завязаны на общий isDone.
+**Исходное состояние:** Сохраняются только PDF и audio.mp3 в Downloads, xdg-open вызывается даже на macOS; кнопки завязаны на общий isDone.
 
 **Целевое:** Независимые действия TXT/PDF/original с корректными именами, атомарным save и платформенным open.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
-FE prerequisites: [TASK-FE-001.29](TASK-FE-001.29.md), [TASK-FE-001.30](TASK-FE-001.30.md).
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
+FE prerequisites: [TASK-FE-001.29](TASK-FE-001.29.md), [TASK-FE-001.30](TASK-FE-001.30.md), [TASK-FE-001.48](TASK-FE-001.48.md).
 Backend traceability: TASK-002.14, TASK-002.15, TASK-002.16
 API: R05, U04.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: все существующие TXT/PDF/WAV, сохранить server bytes; future named export в .51.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Экспорт всех четырёх kinds и original.wav по доступности; transcript.txt не подменяется PDF и summary failure не отключает transcript.
-- [ ] Файл создаётся через безопасный выбор/разрешённый каталог; filename sanitization, overwrite/cancel/error и cleanup partial file проверены.
-- [ ] macOS использует допустимое системное открытие/Save dialog, Linux — доступный opener с обработкой отсутствия; не hardcode HOME/xdg-open для всех платформ.
-- [ ] Локальный playback может использовать только полностью скачанный original; .wav не маркируется .mp3, изменение server Content-Disposition не требуется.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Полноценно доступны существующие четыре TXT/PDF и original WAV по их фактической готовности; transcript не зависит от summary.
+- [ ] Документы сохраняются без подмены bytes/имён. Именованный экспорт .51 — будущий, не gate базового save/open.
+- [ ] Плеер .44 переиспользуется, второго player/PDF renderer/универсального export framework нет.
+- [ ] Выбор пути/overwrite/cancel/error/filename sanitization/partial cleanup проверены; пользовательский исходный WAV не удаляется.
+- [ ] macOS и Linux используют реальный доступный opener/save dialog; .wav не маркируется .mp3, hardcoded HOME/xdg-open для всех платформ нет.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
@@ -74,15 +87,14 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План будущих проверок текущей реализации, сейчас **NOT RUN** в коррекции документации. Cwd — frontend, pinned SDK после .01; .01 не переоткрывается.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/results/export_service_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test test/features/results/export_service_test.dart` | Acceptance criteria текущего реального API и безопасные failure/recovery сценарии | NOT RUN; тестовые fixtures только действующего контракта |
+| Scoped format и analyze при реализации Dart | Нет новых проблем выбранного scope | NOT RUN; исходный unrelated baseline не исправляется автоматически |
+| Real platform/live checks где релевантны | Реальный результат, не mock evidence | NOT RUN; .36/.37/.40, без будущих assignments |
+| Links/DAG/hash/diff и независимый review коррекции | Текущая очередь без future prereqs, код сохранён | Coordinator evidence в PLAN/active-plan |
 
 ## Result
 

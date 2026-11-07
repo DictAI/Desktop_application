@@ -2,13 +2,13 @@
 id: TASK-FE-001.10
 plan: PLAN-FE-001
 title: "Закрепить workspace/contact DTO и CRUD-контракты"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P1
 readiness_category: A
 phase: "1"
-depends_on: ["TASK-FE-001.05","TASK-FE-001.06","TASK-FE-001.07"]
-backend_tasks: ["TASK-002.25","TASK-002.30"]
+depends_on: ["TASK-FE-001.05", "TASK-FE-001.06", "TASK-FE-001.07"]
+backend_tasks: ["TASK-002.25", "TASK-002.30"]
 api_contracts: ["W01–W09"]
 blocked_by: []
 scope:
@@ -19,6 +19,7 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.10.md"
 planned_paths:
   - "test/features/workspace/workspace_api_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.10: Закрепить workspace/contact DTO и CRUD-контракты
@@ -27,8 +28,9 @@ planned_paths:
 
 Сохранить совместимые части и покрыть весь существующий CRUD без ложной membership модели.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -38,7 +40,7 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** WorkspaceDto уже принимает owner_user_id/owner_id; nullable participants уже превращаются в []; ParticipantDto ещё содержит optional voiceProfileId.
+**Исходное состояние:** WorkspaceDto уже принимает owner_user_id/owner_id; nullable participants уже превращаются в []; ParticipantDto ещё содержит optional voiceProfileId.
 
 **Целевое:** Сохранить совместимые части и покрыть весь существующий CRUD без ложной membership модели.
 
@@ -47,14 +49,22 @@ FE prerequisites: [TASK-FE-001.05](TASK-FE-001.05.md), [TASK-FE-001.06](TASK-FE-
 Backend traceability: TASK-002.25, TASK-002.30
 API: W01–W09.
 
+## Этап и решение — 2026-11-02
+
+Сохранить reviewed W01–W09; local voiceProfileId compatibility удалится в .11, именование не добавлять.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
+Готовая реализация/review и отмеченные AC сохраняются без повторной реализации; изменение только планирования.
+
 ## Acceptance criteria
 
-- [ ] Fixtures подтверждают owner field variants, created_at, pagination и null/[] participants; уже корректные branches не переписываются ради стиля.
-- [ ] API использует канонический /workspaces/ и name/email; profile field удаляется согласованно с consumers в .11, не ломая промежуточный build.
-- [ ] 403/404/500 и missing workspace не маскируются догадками; контакт не объявляется authenticated user/role.
-- [ ] Никаких /workspaces/{id}/meetings и invitations endpoints: они не подтверждены реализацией.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] Fixtures подтверждают owner field variants, created_at, pagination и null/[] participants; уже корректные branches не переписываются ради стиля.
+- [x] API использует канонический /workspaces/ и name/email; profile field удаляется согласованно с consumers в .11, не ломая промежуточный build.
+- [x] 403/404/500 и missing workspace не маскируются догадками; контакт не объявляется authenticated user/role.
+- [x] Никаких /workspaces/{id}/meetings и invitations endpoints: они не подтверждены реализацией.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Implementation notes
 
@@ -71,20 +81,30 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+Cwd `/Users/verliiar/Desktop_application`, macOS arm64, Flutter 3.41.3/Dart 3.11.1
+из `.dart_tool/codex-tools/flutter`, PUB_CACHE `/Users/verliiar/.pub-cache`.
+Зависимости/lock не обновлялись; backend только read-only source verification.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/workspace/workspace_api_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Actual | Статус/граница |
+|---|---|---|
+| `flutter test --no-pub test/features/workspace/workspace_api_test.dart --reporter expanded` | 23 tests passed | PASS, synthetic HTTP fixtures без backend/storage |
+| `dart analyze lib/features/workspace/data test/features/workspace/workspace_api_test.dart` | No issues found после устранения 2 style info | PASS, предыдущий INFO сохранён как история |
+| `dart format --output=none --set-exit-if-changed lib/features/workspace/data test/features/workspace/workspace_api_test.dart` | 4 files, 0 changed | PASS |
+| W01–W09 handlers/service/DTO/backend snapshot | canonical paths, owner variants, fractional dates, null contacts и 200 CRUD сверены | PASS source review, не runtime |
+| Native/Linux/live API smoke | Не запускались | NOT RUN; data-only scope |
+| Независимый review | [REVIEW-FE-001.10-01](../reviews/REVIEW-FE-001.10-01.md) reviewed/complete | PASS, независимые 23 tests/analyze/format |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Реализованы безопасные W01–W09 wrappers через общий error mapper; HTTP 500 missing
+workspace не переименовывается в 404, raw body не показывается. Не-JSON/неполные
+ответы становятся AppException вместо TypeError. Существующий list API сохранён;
+getWorkspacesPage и типизированная pagination используют только действующие wire
+поля. Запросы ограничены page>=1, limit=1..100 из-за известного backend mismatch.
+Path IDs экранируются; auth остаётся в общем Dio, retries/новых API нет.
+
+Прежние owner field variants/date parsing сохранены. Контакт — name/email, не user
+или роль. voice_profile_id не читается/не пишется в wire; optional локальный getter
+и copyWith сохранены только для промежуточной совместимости до удаления consumers
+в .11. Invitations/workspace meetings/voice API не добавлялись. Изменены только
+scope пути .10, плюс учёт coordinator. Независимый review завершён, open findings нет; приёмка владельца ожидается.

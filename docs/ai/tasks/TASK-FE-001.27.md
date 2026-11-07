@@ -7,9 +7,9 @@ owner: unassigned
 priority: P1
 readiness_category: B
 phase: "3"
-depends_on: ["TASK-FE-001.25","TASK-FE-001.26"]
-backend_tasks: ["TASK-002.15","TASK-002.20"]
-api_contracts: ["R01","R03"]
+depends_on: ["TASK-FE-001.25", "TASK-FE-001.26"]
+backend_tasks: ["TASK-002.15", "TASK-002.20"]
+api_contracts: ["R01", "R03"]
 blocked_by: []
 scope:
   - "lib/features/results/presentation/results_notifier.dart"
@@ -18,6 +18,7 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.27.md"
 planned_paths:
   - "test/features/results/results_library_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.27: Адаптировать библиотеку результатов и фильтры
@@ -26,8 +27,9 @@ planned_paths:
 
 Latest V2 library с устойчивыми filters/page, refresh, empty/failure и переходом к записи.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -37,23 +39,34 @@ Latest V2 library с устойчивыми filters/page, refresh, empty/failure
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Экран показывает карточки и PDF buttons по isDone; polling загружает первую страницу без текущих фильтров.
+**Исходное состояние:** Экран показывает карточки и PDF buttons по isDone; polling загружает первую страницу без текущих фильтров.
 
 **Целевое:** Latest V2 library с устойчивыми filters/page, refresh, empty/failure и переходом к записи.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.25](TASK-FE-001.25.md), [TASK-FE-001.26](TASK-FE-001.26.md).
 Backend traceability: TASK-002.15, TASK-002.20
 API: R01, R03.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: библиотека/пагинация/незавершённые отправки; нет Назначить участников.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Сохранены визуальные карточки и date filtering, добавлены pagination controls; обновления не сбрасывают page/filter и не повторяют бесконечный load.
-- [ ] Pending/done/failed списка не определяет готовность всех downloads; карточка использует независимые статусы/URL availability и открывает details после .28.
-- [ ] Anonymous записи показываются без fictitious workspace; old STUB text и «Delete not yet available» не выдаются вместо реальной ошибки.
-- [ ] Новый endpoint meetings detail/workspace meetings не используется; library строится на R01 и known audio/job IDs.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Results различает server accepted jobs и local pending uploads до 202; восстановление через .20 показывает реальную причину/доступное действие.
+- [ ] Open ведёт в detail/transcript; после restart доступны те же реальные результаты. Нет Назначить участников/Переименовать/Save/Skip для Speaker.
+- [ ] Сохранены карточки/date filters и server pagination; обновление не сбрасывает page/filter и не повторяет load бесконечно.
+- [ ] List pending/done/failed не определяет summary/download availability; anonymous без фиктивного workspace.
+- [ ] Library строится на R01/known IDs, без meetings detail/workspace meetings новых endpoints, заглушек вместо доступного delete или mock data production.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
@@ -70,15 +83,14 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План будущих проверок текущей реализации, сейчас **NOT RUN** в коррекции документации. Cwd — frontend, pinned SDK после .01; .01 не переоткрывается.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/results/results_library_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test test/features/results/results_library_test.dart` | Acceptance criteria текущего реального API и безопасные failure/recovery сценарии | NOT RUN; тестовые fixtures только действующего контракта |
+| Scoped format и analyze при реализации Dart | Нет новых проблем выбранного scope | NOT RUN; исходный unrelated baseline не исправляется автоматически |
+| Real platform/live checks где релевантны | Реальный результат, не mock evidence | NOT RUN; .36/.37/.40, без будущих assignments |
+| Links/DAG/hash/diff и независимый review коррекции | Текущая очередь без future prereqs, код сохранён | Coordinator evidence в PLAN/active-plan |
 
 ## Result
 

@@ -7,9 +7,9 @@ owner: unassigned
 priority: P1
 readiness_category: B
 phase: "4"
-depends_on: ["TASK-FE-001.19","TASK-FE-001.21","TASK-FE-001.22","TASK-FE-001.26","TASK-FE-001.30","TASK-FE-001.34","TASK-FE-001.35"]
-backend_tasks: ["TASK-002.14","TASK-002.15","TASK-002.16","TASK-002.17","TASK-002.22","TASK-002.24","TASK-002.28","TASK-002.30","TASK-002.37"]
-api_contracts: ["§9","A01–A03","W01–W09","U01–U04","R01–R05"]
+depends_on: ["TASK-FE-001.19", "TASK-FE-001.21", "TASK-FE-001.22", "TASK-FE-001.26", "TASK-FE-001.30", "TASK-FE-001.34", "TASK-FE-001.35"]
+backend_tasks: ["TASK-002.14", "TASK-002.15", "TASK-002.16", "TASK-002.17", "TASK-002.22", "TASK-002.24", "TASK-002.28", "TASK-002.30", "TASK-002.37"]
+api_contracts: ["§9", "A01–A03", "W01–W09", "U01–U04", "R01–R05"]
 blocked_by: []
 scope:
   - "test/integration/batch_backend_test.dart"
@@ -18,6 +18,7 @@ scope:
 planned_paths:
   - "test/integration/batch_backend_test.dart"
   - "docs/testing/BACKEND_INTEGRATION.ru.md"
+delivery_stage: current
 ---
 
 # TASK-FE-001.38: Подготовить opt-in интеграционный harness и требования к стенду
@@ -26,8 +27,9 @@ planned_paths:
 
 Harness готов с synthetic fixtures и явным opt-in, без запуска на неподтверждённом endpoint.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -37,48 +39,48 @@ Harness готов с synthetic fixtures и явным opt-in, без запус
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Нет тестового gateway config или opt-in интеграционного сценария; наличие IP в providers не даёт разрешения писать в production.
+**Исходное состояние:** Нет тестового gateway config или opt-in интеграционного сценария; наличие IP в providers не даёт разрешения писать в production.
 
 **Целевое:** Harness готов с synthetic fixtures и явным opt-in, без запуска на неподтверждённом endpoint.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.19](TASK-FE-001.19.md), [TASK-FE-001.21](TASK-FE-001.21.md), [TASK-FE-001.22](TASK-FE-001.22.md), [TASK-FE-001.26](TASK-FE-001.26.md), [TASK-FE-001.30](TASK-FE-001.30.md), [TASK-FE-001.34](TASK-FE-001.34.md), [TASK-FE-001.35](TASK-FE-001.35.md).
 Backend traceability: TASK-002.14, TASK-002.15, TASK-002.16, TASK-002.17, TASK-002.22, TASK-002.24, TASK-002.28, TASK-002.30, TASK-002.37
 API: §9, A01–A03, W01–W09, U01–U04, R01–R05.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: opt-in harness существующих HTTP; не добавлять будущие wire probes/новый test framework.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Документ перечисляет test URL/TLS, V2 gate, модели/artifacts/MinIO versioning, migrations/NATS/mTLS, LLM/Typst/SMTP и owner test accounts.
-- [ ] Harness по умолчанию не делает network writes и не выдаёт SKIP за PASS; запуск требует явного test-origin/credentials/разрешения на finite synthetic jobs.
-- [ ] Проверяет exact bytes/status/ownership и cleanup через существующий delete, не утверждает полное physical deletion; нет зависимости integration_test SDK без необходимости.
-- [ ] Чеклист различает функциональные HTTP probes, .17 quality acceptance, .24 staging и .31 production evidence; secret env в docs не записывается.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Opt-in harness проверяет только существующие A/W/U/R API и текущий canonical/Speaker N/export; никаких будущих assignments/named-export probes.
+- [ ] Checklist: разрешённые origin/TLS/accounts, V2 gate, models/artifacts/migrations/NATS/mTLS/LLM/Typst/SMTP — конфигурация, не новые frontend API.
+- [ ] Network writes только при явных test-origin/credentials/разрешении finite synthetic jobs; default NOT RUN/SKIP не PASS.
+- [ ] Exact bytes/status/ownership и cleanup существующим R02, без обещания physical delete; новый integration_test framework не требуется.
+- [ ] Functional probes отделены от backend quality/staging/production evidence; секреты и фикстуры реальных записей не сохраняются.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
-Scope/planned_paths в frontmatter — точные разрешаемые пути будущей реализации,
-включая эту карточку. Пока отсутствующие пути явно planned; некоторые создаются
-зависимостью раньше. Удалённый prerequisite retired файл не воссоздавать.
-Общие файлы — один writer; порядок DAG и координация PLAN-FE-001 обязательны.
-Owner назначается при выборе задачи, не агентом задним числом после изменений.
-
-Сохранять Riverpod/GoRouter/Dio и ручные DTO. Не добавлять неуказанные endpoints,
-новые dependencies/permissions/deployment behavior либо «попутные» исправления.
-Если проверки обнаружат проблему вне scope, сохранить evidence и предложить отдельное решение владельцу.
-Не изменять backend или BACKEND_* snapshots. Нет commit/push/merge/release разрешения.
+Выполнять только current scope по существующим API и точным frontmatter paths. Fakes относятся к tests реального wire/оборудования, не к runtime бизнес-данным будущего backend. Не добавлять layers/packages/неподтверждённые endpoints или player/editor abstractions на вырост. Один writer на shared paths, порядок DAG обязателен. Backend и BACKEND_* snapshots read-only. Текущая коррекция — документация; после review разрешено продолжение выбранного current этапа. Commit/push/merge запрещены.
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План проверок текущего scope, **NOT RUN** в этой коррекции документации.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/integration/batch_backend_test.dart (без opt-in ожидаемый NOT RUN/SKIP, не PASS интеграции)` | Указанный в criteria host/стенд; credentials вне Git | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `Проверка harness с fake transport и review safety guards` | Указанный в criteria host/стенд; credentials вне Git | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Статус / граница |
+|---|---|
+| Предусмотренные scope проверки текущих реальных сценариев/host/стенда | NOT RUN; planned tests/docs не создаются этой коррекцией |
+| Формат/analyze только при реализации Dart, platform/live smoke при наличии разрешённой среды | NOT RUN; fakes не подтверждают native/model/стенд |
+| Полный diff, ссылки/DAG/paths и независимый review документации | Выполняются coordinator, результаты в PLAN/active-plan |
 
 ## Result
 

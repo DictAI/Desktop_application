@@ -2,13 +2,13 @@
 id: TASK-FE-001.13
 plan: PLAN-FE-001
 title: "Завершить contact CRUD и пояснить email recipients"
-status: draft
-owner: unassigned
-priority: P2
+status: review
+owner: primary-agent
+priority: P1
 readiness_category: B
 phase: "1"
 depends_on: ["TASK-FE-001.12"]
-backend_tasks: ["TASK-002.25","TASK-002.30"]
+backend_tasks: ["TASK-002.25", "TASK-002.30"]
 api_contracts: ["W06–W09"]
 blocked_by: []
 scope:
@@ -18,6 +18,7 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.13.md"
 planned_paths:
   - "test/features/workspace/contact_crud_widget_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.13: Завершить contact CRUD и пояснить email recipients
@@ -26,8 +27,9 @@ planned_paths:
 
 Name/email contacts с редактированием и честным описанием рассылки.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -37,23 +39,33 @@ Name/email contacts с редактированием и честным опис
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Есть add/delete, updateParticipant не показан отдельным edit UX; формы смешаны с voice library.
+**Исходное состояние:** Есть add/delete, updateParticipant не показан отдельным edit UX; формы смешаны с voice library.
 
 **Целевое:** Name/email contacts с редактированием и честным описанием рассылки.
 
-**Категория B, P2.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.12](TASK-FE-001.12.md).
 Backend traceability: TASK-002.25, TASK-002.30
 API: W06–W09.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: W06–W09 name/email CRUD; P1, без привязки к Speaker.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Add/edit/delete валидируют ввод и сохраняют серверные IDs; null list отображается пустым, ошибки/повтор не дублируют контакт.
-- [ ] Контакты не называются распознанными speakers, invitations или учётными записями с доступом к результату.
-- [ ] Пояснено owner+contacts email для workspace и owner-only для anonymous; готовность результата не означает подтверждённую доставку.
-- [ ] Новые notification status/resend/sharing UI и endpoints не добавляются.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] W06–W09 add/edit/delete используют настоящие name/email и server IDs, null list — пустая. Повторы/409/ошибки не создают дубликат.
+- [x] Контакты не называются распознанными speakers, invitations или аккаунтами с доступом. Нет выбора контакта для Speaker, editor или фиктивного email.
+- [x] Owner+contacts email для workspace и owner-only для anonymous объяснены без обещания доставки/resend/новых recipients.
+- [x] Удаление/переименование общего контакта не меняет транскрипт; исторический snapshot — будущее .47/.50.
+- [x] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [x] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
@@ -70,20 +82,30 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+2026-11-07, cwd `/Users/verliiar/Desktop_application`, macOS arm64.
+Pinned Flutter 3.41.3 / Dart 3.11.1, `PUB_CACHE=/Users/verliiar/.pub-cache`.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/workspace/contact_crud_widget_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Фактический результат |
+|---|---|
+| `flutter test --no-pub test/features/workspace --reporter expanded` | PASS, независимо 65 тестов, включая 14 contact tests и две регрессии W06 после потерянного PUT |
+| `flutter analyze --no-pub` для workspace_detail_screen.dart, workspace_notifier.dart и contact_crud_widget_test.dart | PASS, No issues found после двух braces fixes |
+| `dart format --output=none --set-exit-if-changed` по тем же Dart paths | PASS, 3 files, 0 changed |
+| Сверка W06–W09 с backend HEAD `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`, diff, whitespace | PASS, проверены существующие контракты и текущий scope |
+| Независимый [REVIEW-FE-001.13-01](../reviews/REVIEW-FE-001.13-01.md) | PASS, F01/F02 исправлены и повторно проверены, открытых findings нет |
+| Живой gateway и email delivery | NOT RUN. Fixtures действующих W06–W09 не подтверждают настройку SMTP или доставку |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Исходная реализация от /root/workspace12_resume. Coordinator завершил два
+замечания review. Workspace показывает реальные name/email contacts, поддерживает
+add/edit/delete, confirmation, validation, загрузку, безопасные ошибки и явное
+восстановление после неизвестного исхода. Редактирование сохраняет server ID.
+При потере ответа W06 сверяет текущий список до явного повтора тех же данных.
+Если email занят другим контактом или редактируемый ID исчез, ожидание снимается
+и отображается актуальный список. Для исчезнувшего ID кнопка сохранения скрыта.
+
+Объяснение recipients различает owner+contacts и owner-only anonymous. Contacts
+не дают доступа и не меняют сохранённый транскрипт. Доставка и resend не обещаются.
+Изменены `workspace_detail_screen.dart`, `workspace_notifier.dart`,
+`test/features/workspace/contact_crud_widget_test.dart` и эта карточка.
+Статус `review`, приёмка владельцем отдельно.

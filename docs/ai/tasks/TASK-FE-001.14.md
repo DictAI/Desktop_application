@@ -2,13 +2,13 @@
 id: TASK-FE-001.14
 plan: PLAN-FE-001
 title: "Удалить неиспользуемый voice-profile API и wiring"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P1
 readiness_category: A
 phase: "1"
 depends_on: ["TASK-FE-001.11"]
-backend_tasks: ["TASK-002.20","TASK-002.25"]
+backend_tasks: ["TASK-002.20", "TASK-002.25"]
 api_contracts: ["§10"]
 blocked_by: []
 scope:
@@ -19,6 +19,10 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.14.md"
 planned_paths:
   - "test/features/workspace/retired_voice_api_test.dart"
+retired_paths:
+  - "lib/features/voice_profile/data/voice_profile_api.dart"
+  - "lib/features/voice_profile/data/dto/voice_profile_dto.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.14: Удалить неиспользуемый voice-profile API и wiring
@@ -27,8 +31,9 @@ planned_paths:
 
 Удалить код/регистрацию retired API без compatibility adapter.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -38,7 +43,7 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** После .11 voice-profile classes/provider становятся неиспользуемыми.
+**Исходное состояние:** После .11 voice-profile classes/provider становятся неиспользуемыми.
 
 **Целевое:** Удалить код/регистрацию retired API без compatibility adapter.
 
@@ -47,13 +52,19 @@ FE prerequisites: [TASK-FE-001.11](TASK-FE-001.11.md).
 Backend traceability: TASK-002.20, TASK-002.25
 API: §10.
 
+## Этап и решение — 2026-11-02
+
+Нужна: удалить retired voice API после consumers, не заменять заглушкой.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Удалены voice-profile client/DTO/provider после миграции всех ссылок, а не только спрятаны кнопки.
-- [ ] Regression check runtime source не находит /voice-profiles запросов и неиспользуемых imports; bootstrap историческая документация не считается runtime caller.
-- [ ] Shared providers меняет один writer после .11; нет автоматического dependency cleanup unrelated packages.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] Удалены voice-profile client/DTO/provider после миграции всех ссылок, а не только спрятаны кнопки.
+- [x] Regression check runtime source не находит /voice-profiles запросов и неиспользуемых imports; bootstrap историческая документация не считается runtime caller.
+- [x] Shared providers меняет один writer после .11; нет автоматического dependency cleanup unrelated packages.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Implementation notes
 
@@ -70,20 +81,32 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+2026-11-06, cwd `/Users/verliiar/Desktop_application`, macOS arm64, pinned Flutter
+3.41.3 / Dart 3.11.1, `PUB_CACHE=/Users/verliiar/.pub-cache`, `--no-pub`.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/workspace/retired_voice_api_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Actual | Status / limitation |
+|---|---|---|
+| `flutter test --no-pub test/features/workspace/retired_voice_api_test.dart test/features/workspace/profile_free_flow_test.dart test/features/workspace/workspace_api_test.dart --reporter expanded` | 27 tests, exit 0 | PASS, includes current W01–W09 and profile-free paths |
+| `flutter analyze --no-pub lib/shared/providers/providers.dart test/features/workspace/retired_voice_api_test.dart` | No issues found | PASS, scoped |
+| `dart format --output=none --set-exit-if-changed` по двум оставшимся Dart paths | 2 files, 0 changed | PASS, deleted files исключены |
+| `rg` по runtime `lib` для client/provider/import/retired route | Только удаляемые client/DTO и provider были callers до изменения, после их нет | PASS, test fixtures/historical docs не runtime callers |
+| Diff/scope/whitespace | Удалены два retired файла, provider/import, добавлен regression test | PASS, dependencies/API соседних features не изменены |
+| Independent REVIEW-FE-001.14-01 | Передаётся reviewer | PASS, reviewed/complete, accepted не выставлен |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Удалены `lib/features/voice_profile/data/voice_profile_api.dart`, его DTO и
+регистрация `voiceProfileApiProvider` в shared providers. Все consumers уже удалены
+и независимо проверены в .11. Compatibility adapter, заглушка или новый repository
+не созданы. Действующие workspace контакты остаются отдельной функцией.
+
+Новый regression test проверяет отсутствие retired URL/client/DTO/provider/import
+во всём runtime Dart-коде. Проверки существующих workspace API и profile-free UI
+тоже прошли. Историческая документация и fixtures о неподдерживаемых полях сохранены.
+Pubspec/lock не менялись. Требуемый независимый review ожидается.
+
+Первый analyze выявил braces lint в новом тесте. Исправлено, повтор scoped analyze
+No issues found. `retired_paths` явно указывает удалённые, а не будущие файлы.
+
+Независимый [REVIEW-FE-001.14-01](../reviews/REVIEW-FE-001.14-01.md) завершён 2026-11-06.
+Открытых findings нет, приёмка пользователя не присваивается автоматически.

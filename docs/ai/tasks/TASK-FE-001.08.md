@@ -2,12 +2,12 @@
 id: TASK-FE-001.08
 plan: PLAN-FE-001
 title: "Сверить auth API с действующим wire contract"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P1
 readiness_category: A
 phase: "1"
-depends_on: ["TASK-FE-001.04","TASK-FE-001.05","TASK-FE-001.06","TASK-FE-001.07"]
+depends_on: ["TASK-FE-001.04", "TASK-FE-001.05", "TASK-FE-001.06", "TASK-FE-001.07"]
 backend_tasks: ["TASK-002.37"]
 api_contracts: ["A01–A05"]
 blocked_by: []
@@ -20,6 +20,7 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.08.md"
 planned_paths:
   - "test/features/auth/auth_api_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.08: Сверить auth API с действующим wire contract
@@ -28,8 +29,9 @@ planned_paths:
 
 Login/register и существующие account client methods точно соответствуют backend.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -39,7 +41,7 @@ Login/register и существующие account client methods точно с�
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** token уже читается правильно; refresh не посылает {}, changePassword/changeEmail используют неверные keys.
+**Исходное состояние:** token уже читается правильно; refresh не посылает {}, changePassword/changeEmail используют неверные keys.
 
 **Целевое:** Login/register и существующие account client methods точно соответствуют backend.
 
@@ -48,14 +50,20 @@ FE prerequisites: [TASK-FE-001.04](TASK-FE-001.04.md), [TASK-FE-001.05](TASK-FE-
 Backend traceability: TASK-002.37
 API: A01–A05.
 
+## Этап и решение — 2026-11-02
+
+Нужна: существующие A01–A05, без нового account settings экрана.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Сохранено token; register 200 message без user_id/автологина; refresh POST отправляет {} с действующим JWT.
-- [ ] Change fields — new_password/new_email; не добавляются old_password, refresh_token, logout или /me API.
-- [ ] Fixtures проверяют validation/conflict/unauthorized/non-JSON; frontend length checks не подменяют серверные byte limits.
-- [ ] Новый account settings экран не входит в эту задачу: адаптируются существующие методы, не создаётся дополнительный product scope.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] Сохранено token; register 200 message без user_id/автологина; refresh POST отправляет {} с действующим JWT.
+- [x] Change fields — new_password/new_email; не добавляются old_password, refresh_token, logout или /me API.
+- [x] Fixtures проверяют validation/conflict/unauthorized/non-JSON; frontend length checks не подменяют серверные byte limits.
+- [x] Новый account settings экран не входит в эту задачу: адаптируются существующие методы, не создаётся дополнительный product scope.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Implementation notes
 
@@ -72,20 +80,35 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+2026-11-03, cwd `/Users/verliiar/Desktop_application`, macOS arm64,
+`.dart_tool/codex-tools/flutter` Flutter 3.41.3 / Dart 3.11.1,
+`PUB_CACHE=/Users/verliiar/.pub-cache CI=true FLUTTER_SUPPRESS_ANALYTICS=true`.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/auth/auth_api_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Команда / сценарий | Actual | Статус / граница |
+|---|---|---|
+| `flutter test --no-pub test/features/auth/auth_api_test.dart` | 20 tests passed | PASS, ScriptedAdapter + настоящие gateway/auth interceptors с plugin storage fakes |
+| `dart analyze lib/features/auth/data test/features/auth/auth_api_test.dart` | No issues found | PASS |
+| `dart format --output=none --set-exit-if-changed lib/features/auth/data test/features/auth/auth_api_test.dart` | 5 files, 0 changed | PASS |
+| Global analyze | Последний общий run: 13 прежних info prefer_const_constructors вне .08 | FAIL baseline, не clean global PASS |
+| Live auth / account mutation | Не запускались | NOT RUN, backend/staging не изменяется, последующий .38/.40 |
+| Независимый review .08-01 | [REVIEW-FE-001.08-01](../reviews/REVIEW-FE-001.08-01.md) reviewed/complete: independent 20tests/analyze/format PASS, findings нет | PASS |
+
+Прочитаны реальные router, handlers login/register/refresh/change-email/change-password/
+error_handling и service в `services/auth-service/internal/` backend SHA из Context.
+Login/register передают исходные strings; backend byte validation не подменяется
+Dart character length. UI и lifecycle остаются отдельной .09.
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+AuthApi соответствует пяти действующим операциям: token в login/refresh; register
+200 message без auto-login/user_id; refresh JSON `{}`; account POST используют
+new_password/new_email и 201. Никаких /me/logout/refresh_token/old_password или
+нового account screen. LoginResponse отклоняет пустой/отсутствующий token;
+malformed/non-JSON responses и HTTP ошибки преобразуются .07 mapper-ом без raw body.
+Безопасные локальные AppException сохраняются. Wire fixtures охватывают все пять
+методов, JWT/public routes, 400/401/403/404/409/429/500 и malformed success.
+
+Изменены auth_api.dart/login_response.dart, добавлен auth_api_test.dart и обновлена
+эта карточка. LoginRequest/RegisterRequest уже соответствовали wire и не менялись.
+.04/05/06/07 prerequisites checked/reviewed; .01/.02 не переделывались.
+Status review, independent review complete без findings, не accepted. Commit/push/merge нет.

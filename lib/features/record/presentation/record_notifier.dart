@@ -8,7 +8,6 @@ import '../../../shared/providers/providers.dart';
 import '../data/audio_ingest_api.dart';
 import '../data/system_audio_service.dart';
 
-
 enum RecordStatus { idle, recording, paused, uploading, done, error }
 
 class RecordState {
@@ -50,22 +49,21 @@ class RecordState {
     List<InputDevice>? inputDevices,
     InputDevice? selectedDevice,
     bool clearDevice = false,
-  }) =>
-      RecordState(
-        status: status ?? this.status,
-        captureSystemAudio: captureSystemAudio ?? this.captureSystemAudio,
-        selectedWorkspaceId: selectedWorkspaceId ?? this.selectedWorkspaceId,
-        selectedWorkspaceName:
-            selectedWorkspaceName ?? this.selectedWorkspaceName,
-        uploadedAudioId: uploadedAudioId ?? this.uploadedAudioId,
-        errorMessage: errorMessage ?? this.errorMessage,
-        uploadProgress: uploadProgress ?? this.uploadProgress,
-        inputDevices: inputDevices ?? this.inputDevices,
-        selectedDevice:
-            clearDevice ? null : (selectedDevice ?? this.selectedDevice),
-      );
+    bool clearError = false,
+  }) => RecordState(
+    status: status ?? this.status,
+    captureSystemAudio: captureSystemAudio ?? this.captureSystemAudio,
+    selectedWorkspaceId: selectedWorkspaceId ?? this.selectedWorkspaceId,
+    selectedWorkspaceName: selectedWorkspaceName ?? this.selectedWorkspaceName,
+    uploadedAudioId: uploadedAudioId ?? this.uploadedAudioId,
+    errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    uploadProgress: uploadProgress ?? this.uploadProgress,
+    inputDevices: inputDevices ?? this.inputDevices,
+    selectedDevice: clearDevice
+        ? null
+        : (selectedDevice ?? this.selectedDevice),
+  );
 }
-
 
 class RecordNotifier extends StateNotifier<RecordState> {
   final AudioIngestApi _api;
@@ -75,45 +73,91 @@ class RecordNotifier extends StateNotifier<RecordState> {
   String? _sysAudioPath;
   String? _micAudioPath;
   Process? _parecProcess;
+  bool _startingRecording = false;
+
+  bool get hasActiveOperation =>
+      _startingRecording ||
+      state.isActive ||
+      state.status == RecordStatus.uploading;
 
   RecordNotifier(this._api) : super(const RecordState()) {
     _loadDevices();
   }
 
-
   Future<void> _loadDevices() async {
     final hasPerm = await _recorder.hasPermission();
-    if (!hasPerm) return;
+    if (!mounted || !hasPerm) return;
     final devices = await _recorder.listInputDevices();
-    state = state.copyWith(inputDevices: devices);
+    if (mounted) state = state.copyWith(inputDevices: devices);
   }
 
   Future<void> refreshDevices() => _loadDevices();
 
-  void selectDevice(InputDevice? device) => state =
-      state.copyWith(selectedDevice: device, clearDevice: device == null);
-
+  void selectDevice(InputDevice? device) => state = state.copyWith(
+    selectedDevice: device,
+    clearDevice: device == null,
+  );
 
   void setCaptureSystemAudio(bool value) =>
       state = state.copyWith(captureSystemAudio: value);
 
-  void selectWorkspace(String id, String name) => state =
-      state.copyWith(selectedWorkspaceId: id, selectedWorkspaceName: name);
+  bool selectWorkspace(String id, String name) {
+    if (hasActiveOperation) return false;
+    state = state.copyWith(
+      selectedWorkspaceId: id,
+      selectedWorkspaceName: name,
+      clearError: true,
+    );
+    return true;
+  }
 
-  void clearWorkspace() => state = RecordState(
-        inputDevices: state.inputDevices,
-        selectedDevice: state.selectedDevice,
-        captureSystemAudio: state.captureSystemAudio,
+  void renameWorkspace(String id, String name) {
+    if (state.selectedWorkspaceId == id) {
+      state = state.copyWith(selectedWorkspaceName: name);
+    }
+  }
+
+  void workspaceDeleted(String id) {
+    if (state.selectedWorkspaceId != id) return;
+    if (hasActiveOperation) {
+      setWorkspaceContextError(
+        'Рабочее пространство удалено. Активная операция сохранена.',
       );
+    } else {
+      clearWorkspace();
+    }
+  }
 
+  void setWorkspaceContextError(String message) {
+    state = state.copyWith(errorMessage: message);
+  }
+
+  void clearWorkspace() {
+    if (hasActiveOperation) return;
+    state = RecordState(
+      inputDevices: state.inputDevices,
+      selectedDevice: state.selectedDevice,
+      captureSystemAudio: state.captureSystemAudio,
+    );
+  }
+
+  /// Shared guard also covers permission checks before anonymous capture starts.
+  Future<void> runStartOperation(Future<void> Function() start) async {
+    if (hasActiveOperation) return;
+    _startingRecording = true;
+    try {
+      await start();
+    } finally {
+      _startingRecording = false;
+    }
+  }
 
   Future<void> toggleRecording() async {
-    if (state.status == RecordStatus.recording) {
-      await _stopAndUpload();
-    } else if (state.status == RecordStatus.paused) {
+    if (_startingRecording || state.status == RecordStatus.uploading) return;
+    if (state.isActive) {
       await _stopAndUpload();
     } else {
-      await _startRecording();
+      await runStartOperation(_startRecording);
     }
   }
 
@@ -132,7 +176,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
         state.selectedWorkspaceId!.isEmpty) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'Please select a workspace before recording.\n'
+        errorMessage:
+            'Please select a workspace before recording.\n'
             'Choose one from the dropdown below or create a new one with "+".',
       );
       return;
@@ -155,7 +200,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
         errorMessage: Platform.isLinux
             ? 'Microphone permission denied. Check your system audio settings.'
             : 'Microphone permission denied.\n'
-                'Go to System Settings → Privacy & Security → Microphone and enable the app.',
+                  'Go to System Settings → Privacy & Security → Microphone and enable the app.',
       );
       return;
     }
@@ -187,7 +232,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (!micGranted) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'Microphone permission denied.\n'
+        errorMessage:
+            'Microphone permission denied.\n'
             'Go to System Settings → Privacy & Security → Microphone and enable the app.',
       );
       return;
@@ -197,7 +243,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (!systemGranted) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'Screen & System Audio Recording permission denied.\n'
+        errorMessage:
+            'Screen & System Audio Recording permission denied.\n'
             'Go to System Settings → Privacy & Security → Screen & System Audio Recording.',
       );
       return;
@@ -226,7 +273,9 @@ class RecordNotifier extends StateNotifier<RecordState> {
       );
       state = state.copyWith(status: RecordStatus.recording);
     } on Exception catch (e) {
-      try { await _sysAudio.stopRecording(); } catch (_) {}
+      try {
+        await _sysAudio.stopRecording();
+      } catch (_) {}
       _sysAudioPath = null;
       _micAudioPath = null;
       state = state.copyWith(
@@ -353,11 +402,20 @@ class RecordNotifier extends StateNotifier<RecordState> {
       if (hasSystem && hasMic) {
         // Mix with ffmpeg
         final dir = await getTemporaryDirectory();
-        final mixedPath = '${dir.path}/mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
+        final mixedPath =
+            '${dir.path}/mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
         final result = await Process.run('ffmpeg', [
-          '-i', micPath, '-i', sysPath,
-          '-filter_complex', 'amix=inputs=2:duration=first',
-          '-ar', '16000', '-ac', '1', mixedPath,
+          '-i',
+          micPath,
+          '-i',
+          sysPath,
+          '-filter_complex',
+          'amix=inputs=2:duration=first',
+          '-ar',
+          '16000',
+          '-ac',
+          '1',
+          mixedPath,
         ]);
         if (result.exitCode == 0) {
           path = mixedPath;
@@ -404,7 +462,8 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (workspaceId == null || workspaceId.isEmpty) {
       state = state.copyWith(
         status: RecordStatus.error,
-        errorMessage: 'No workspace selected. Please select or create a workspace first.',
+        errorMessage:
+            'No workspace selected. Please select or create a workspace first.',
       );
       return;
     }
@@ -428,18 +487,20 @@ class RecordNotifier extends StateNotifier<RecordState> {
         uploadProgress: 1,
       );
     } on AppException catch (e) {
-      state =
-          state.copyWith(status: RecordStatus.error, errorMessage: e.message);
+      state = state.copyWith(
+        status: RecordStatus.error,
+        errorMessage: e.message,
+      );
     }
   }
 
   void reset() => state = RecordState(
-        selectedWorkspaceId: state.selectedWorkspaceId,
-        selectedWorkspaceName: state.selectedWorkspaceName,
-        inputDevices: state.inputDevices,
-        selectedDevice: state.selectedDevice,
-        captureSystemAudio: state.captureSystemAudio,
-      );
+    selectedWorkspaceId: state.selectedWorkspaceId,
+    selectedWorkspaceName: state.selectedWorkspaceName,
+    inputDevices: state.inputDevices,
+    selectedDevice: state.selectedDevice,
+    captureSystemAudio: state.captureSystemAudio,
+  );
 
   @override
   void dispose() {
@@ -461,12 +522,12 @@ Future<String> _getDefaultMonitor() async {
   final monitorLine = (sources.stdout as String)
       .split('\n')
       .firstWhere((l) => l.contains('.monitor'), orElse: () => '');
-  return monitorLine.isNotEmpty ? monitorLine.split('\t')[1] : 'auto_null.monitor';
+  return monitorLine.isNotEmpty
+      ? monitorLine.split('\t')[1]
+      : 'auto_null.monitor';
 }
 
 final recordNotifierProvider =
     StateNotifierProvider<RecordNotifier, RecordState>((ref) {
-  return RecordNotifier(ref.read(audioIngestApiProvider));
-});
-
-
+      return RecordNotifier(ref.read(audioIngestApiProvider));
+    });

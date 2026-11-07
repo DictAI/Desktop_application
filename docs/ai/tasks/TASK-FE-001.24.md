@@ -8,8 +8,8 @@ priority: P1
 readiness_category: B
 phase: "2"
 depends_on: ["TASK-FE-001.23"]
-backend_tasks: ["TASK-002.16","TASK-002.25","TASK-002.30"]
-api_contracts: ["U02","U03","R03","R04"]
+backend_tasks: ["TASK-002.16", "TASK-002.25", "TASK-002.30"]
+api_contracts: ["U02", "U03", "R03", "R04"]
 blocked_by: []
 scope:
   - "lib/features/record/presentation/anonymous_record_notifier.dart"
@@ -21,16 +21,16 @@ scope:
   - "docs/ai/tasks/TASK-FE-001.24.md"
 planned_paths:
   - "test/features/record/anonymous_flow_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.24: Заменить anonymous confirm на owner-only V2 batch UX
 
 ## Goal
 
-Авторизованный upload без workspace, тот же WAV/capture/journal/tracker, без speaker confirmation.
+Авторизованный upload без workspace через общий WAV/capture/journal/tracker, без legacy confirm и без назначения имён; после canonical открывается transcript.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Текущий этап выбран; исполнение после независимого review коррекции, по DAG.
 
 ## Context
 
@@ -40,23 +40,40 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Anon пишет M4A/OGG; открывает недismissible LabelSpeakersModal, collects name/email и confirm создаёт workspace.
+**Исходное состояние:** Anon пишет M4A/OGG; открывает недismissible LabelSpeakersModal, collects name/email и confirm создаёт workspace.
 
-**Целевое:** Авторизованный upload без workspace, тот же WAV/capture/journal/tracker, без speaker confirmation.
+**Целевое:** Авторизованный upload без workspace через общий WAV/capture/journal/tracker, без legacy confirm и без назначения имён; после canonical открывается transcript.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.23](TASK-FE-001.23.md).
 Backend traceability: TASK-002.16, TASK-002.25, TASK-002.30
 API: U02, U03, R03, R04.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: owner-only anonymous V2, сразу к результату без confirm/назначений.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Anonymous использует общий capture для mic/system на macOS/Linux, а не отдельный opus/aac pipeline.
-- [ ] В upload workspace_id отсутствует; accepted job/session сохранены, failed/cancelled/expired отображаются terminal без вечного polling.
-- [ ] Не запрашиваются speaker names/emails/fragments, не создаются workspace/participants/profiles; LabelSpeakersModal и его consumers удалены.
-- [ ] UI показывает именно anon upload/error/poll state, блокирует двойные stop/upload и mode switch; email только owner, anonymous не значит unauthenticated.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Без workspace — тот же pre-Start snapshot/confirmed finish, без preview; Stop/leave dialog в .49.
+- [ ] После accepted — tracking и открытие canonical transcript с backend Speaker N. Формы назначения, Skip и временного ручного имени нет.
+- [ ] Общий mic/system WAV capture на macOS/Linux; workspace_id не посылается, accepted job/session сохраняются.
+- [ ] failed/cancelled/expired terminal; двойные stop/upload/mode switch блокируются, email только owner.
+- [ ] Legacy fragments/confirm/LabelSpeakersModal удалены. Workspace/contacts/profiles и имена не создаются из anonymous flow.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
+
+## Уточнение platform capture — 2026-11-03
+
+Anonymous использует тот же platform capture: .15/.16 на macOS и .17 в обоих
+режимах на Linux. Нет fallback на pinned record_linux file recorder. UI Pause
+зависит от supportsPause выбранного adapter.
 
 ## Implementation notes
 
@@ -73,15 +90,14 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План будущих проверок текущей реализации, сейчас **NOT RUN** в коррекции документации. Cwd — frontend, pinned SDK после .01; .01 не переоткрывается.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/record/anonymous_flow_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test test/features/record/anonymous_flow_test.dart` | WAV/options/202 и canonical transcript, без confirm/editor | NOT RUN; тестовые fixtures только действующего контракта |
+| Scoped format и analyze при реализации Dart | Нет новых проблем выбранного scope | NOT RUN; исходный unrelated baseline не исправляется автоматически |
+| Real platform/live checks где релевантны | Реальный результат, не mock evidence | NOT RUN; .36/.37/.40, без будущих assignments |
+| Links/DAG/hash/diff и независимый review коррекции | Текущая очередь без future prereqs, код сохранён | Coordinator evidence в PLAN/active-plan |
 
 ## Result
 

@@ -2,26 +2,30 @@
 id: TASK-FE-001.09
 plan: PLAN-FE-001
 title: "Согласовать auth UI, JWT lifecycle и навигацию"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P1
 readiness_category: B
 phase: "1"
 depends_on: ["TASK-FE-001.08"]
 backend_tasks: ["TASK-002.37"]
-api_contracts: ["A01–A03","§2"]
+api_contracts: ["A01–A03", "§2"]
 blocked_by: []
 scope:
   - "lib/features/auth/presentation/auth_notifier.dart"
   - "lib/features/auth/presentation/login_screen.dart"
   - "lib/core/network/auth_interceptor.dart"
+  - "lib/core/storage/secure_storage.dart"
   - "lib/core/router/auth_listenable.dart"
   - "lib/core/router/app_router.dart"
   - "lib/shared/providers/providers.dart"
   - "test/features/auth/session_navigation_test.dart"
+  - "test/widget_test.dart"
+  - "test/core/storage/secure_storage_test.dart"
   - "docs/ai/tasks/TASK-FE-001.09.md"
 planned_paths:
   - "test/features/auth/session_navigation_test.dart"
+delivery_stage: current
 ---
 
 # TASK-FE-001.09: Согласовать auth UI, JWT lifecycle и навигацию
@@ -30,8 +34,9 @@ planned_paths:
 
 Явные login/loading/error/expired/logout состояния и управляемое обновление ещё действующего JWT.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -41,23 +46,44 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Redirect проверяет только наличие token; 401 удаляет его; error copyWith не очищает null; session-bound features живут глобально.
+**Исходное состояние:** Redirect проверяет только наличие token; 401 удаляет его; error copyWith не очищает null; session-bound features живут глобально.
 
 **Целевое:** Явные login/loading/error/expired/logout состояния и управляемое обновление ещё действующего JWT.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
 FE prerequisites: [TASK-FE-001.08](TASK-FE-001.08.md).
 Backend traceability: TASK-002.37
 API: A01–A03, §2.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: JWT/session/navigation; убрать обязательства editor/draft guards текущего этапа.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Register→login сохранён; ошибка очищается при повторе; double submit и поздние callbacks после dispose не меняют новый session.
-- [ ] Истёкший/старый issuer JWT требует login; refresh не лечит expired JWT и не запускает бесконечный 401/refresh loop.
-- [ ] Logout локально удаляет credential и сбрасывает текущие feature states; поздний ответ старого session не разлогинивает нового пользователя.
-- [ ] Полная batch account-isolation дополняется .34; router guards сохраняют JWT и для anonymous.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Auth redirect/session cleanup не останавливает capture случайным route dispose; общий Stop/leave guard реализует .49. Guards редактора имён в текущий scope не входят.
+- [x] Register→login сохранён; ошибка очищается при повторе; double submit и late callbacks не меняют новую session.
+- [x] Истёкший/старый issuer JWT требует login; refresh только ещё действующего JWT, без бесконечного 401 loop.
+- [ ] Logout удаляет credential/feature state, late 401 старой сессии не разлогинивает новую. Полная isolation дополняется .34; anonymous также под JWT.
+- [x] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [x] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
+
+## Уточнение scope — 2026-11-03
+
+Добавлен secure_storage.dart. Сравнение JWT в interceptor и последующее удаление
+были бы двумя операциями с гонкой. Проверка версии сессии и её удаление или
+обновление выполняются в одной существующей очереди .04. Версия отличает даже
+повторный вход с побайтово одинаковым JWT. Формат хранения и настройки Keychain
+сохраняются. Добавлен test/widget_test.dart для корректировки проверки ошибки
+Login 401 после подключения общего mapper. Secure storage test уточнён после
+F03 review: частично записанный JWT сохраняет старые данные и остаётся недоступен
+до явного успешного повтора записи.
 
 ## Implementation notes
 
@@ -74,20 +100,64 @@ Owner назначается при выборе задачи, не агенто
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+2026-11-03, cwd `/Users/verliiar/Desktop_application`, macOS arm64,
+`.dart_tool/codex-tools/flutter` 3.41.3 / Dart 3.11.1,
+`PUB_CACHE=/Users/verliiar/.pub-cache CI=true FLUTTER_SUPPRESS_ANALYTICS=true`.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/auth/session_navigation_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Команда / сценарий | Actual | Статус / граница |
+|---|---|---|
+| `flutter test --no-pub --timeout 45s test/features/auth test/core/storage/secure_storage_test.dart test/core/network/storage_interceptor_test.dart test/widget_test.dart` | 52 tests passed | PASS, 12 session/route, 20 wire, 14 storage/interceptor, 6 foundation |
+| `dart analyze` в exact Dart scope карточки | No issues found | PASS |
+| `dart format --output=none --set-exit-if-changed` в изменённом Dart scope | 8 files, 0 changed | PASS |
+| Real gateway / OS capture cleanup | Не запускались | NOT RUN, .34/.36–.40/.49 |
+| Independent review .09-01 | Передан отдельному reviewer | Pending |
+
+Fixture actual GoRouter проверяет переход с Workspaces на Login после текущего 401
+и auth guard Record/Results. Отдельные tests охватывают byte-identical JWT на новой
+сессии, public 401, атомарную замену, single-flight, late login/refresh, logout,
+issuer/expiry и один failed proactive renewal с последующим истечением. Реальные
+gateway auth-service handlers и claims сверены read-only по backend SHA из Context.
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Вход и регистрация имеют отдельные loading/error, повтор очищает сообщение,
+запаздывающий login после logout не меняет session. Register требует 8 UTF-8 bytes,
+login передаёт пароль без правила длины регистрации. Неподходящий issuer или
+истечение JWT закрывают защищённые маршруты. Проверка claims в Dart используется
+для навигации и времени обновления, подпись и доступ проверяет gateway.
+
+Выбрана одна попытка A03 за пять минут до expiry действующего JWT. Ошибка renewal
+оставляет действующий token до expiry или текущего 401. HTTP 401 сам не запускает
+refresh. Применяется только более долгий JWT того же owner. Сравнение credential
+revision и mutation сериализованы в SecureStorage. Старый 401 и refresh не меняют
+новую сессию даже при одинаковом JWT. Public 401 отображает понятную ошибку входа.
+
+Logout очищает session credentials и auth state. Общая очистка feature state,
+активной записи, результатов и загрузок остаётся .34/.49. Эти интеграционные
+критерии не выданы за готовые. Keychain smoke .04 уже проходил на исходном
+storage lifecycle, здесь повторены storage unit tests после изменений.
+
+Status review, независимый отчёт ожидается. Нет automatic accepted.
+
+
+## Исправления по review — 2026-11-03
+
+[REVIEW-FE-001.09-01](../reviews/REVIEW-FE-001.09-01.md) воспроизвёл F01–F03.
+При неподтверждённом удалении или изменении credential блокируется в текущем
+процессе. Matched 401 уведомляет router даже при ошибке очистки. Исключение
+уведомления завершает запрос безопасной ошибкой. Если старый JWT после неудачного
+обновления подтверждён без изменений, его revision и таймер expiry сохраняются.
+Частично записанный JWT требует полного успешного повтора входа. При отказе OS
+удаление между запусками не подтверждено, приложение явно сообщает об ошибке
+защищённого хранилища. Проверки authors delta: 57 auth/storage/widget tests PASS
+и 18 .15 tests PASS в совместном запуске, scoped analyze No issues found.
+Повторный независимый review завершён. REVIEW-FE-001.09-01 подтверждает F01–F03 fixed, 57 auth/storage/widget tests и 18 capture tests, открытых findings нет.
+
+
+Дополнительная macOS regression после изменения очереди credentials. Обе локальные
+подписанные сборки harness из .04 созданы с прежним SDK и signing override. Повтор
+12 отдельных фаз в Debug и 12 в Release прошёл. `codesign --verify --deep --strict`
+и applied entitlements PASS для обоих bundles. Cwd frontend, evidence в
+`/tmp/dictai-resume-20261103/{debug,release}-results.json`. Нативные Keychain операции
+проверены на изолированных fixtures. Частичный сбой logout/renewal проверен unit
+fixtures, что не подтверждает физическое удаление при отказе OS.

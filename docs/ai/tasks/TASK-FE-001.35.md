@@ -7,9 +7,9 @@ owner: unassigned
 priority: P1
 readiness_category: B
 phase: "4"
-depends_on: ["TASK-FE-001.12","TASK-FE-001.13","TASK-FE-001.23","TASK-FE-001.24","TASK-FE-001.29","TASK-FE-001.31","TASK-FE-001.32","TASK-FE-001.34"]
+depends_on: ["TASK-FE-001.12", "TASK-FE-001.13", "TASK-FE-001.23", "TASK-FE-001.24", "TASK-FE-001.29", "TASK-FE-001.31", "TASK-FE-001.32", "TASK-FE-001.34", "TASK-FE-001.48", "TASK-FE-001.49"]
 backend_tasks: ["TASK-002.17"]
-api_contracts: ["A01–A03","W01–W09","U01–U04","R01–R05"]
+api_contracts: ["A01–A03", "W01–W09", "U01–U04", "R01–R05"]
 blocked_by: []
 scope:
   - "test/journeys/batch_journey_test.dart"
@@ -22,6 +22,7 @@ planned_paths:
   - "test/journeys/batch_failure_test.dart"
   - "test/journeys/batch_restart_test.dart"
   - "docs/testing/BATCH_MATRIX.ru.md"
+delivery_stage: current
 ---
 
 # TASK-FE-001.35: Покрыть batch-пути unit/widget regression suite
@@ -30,8 +31,9 @@ planned_paths:
 
 Детерминированная пользовательская regression matrix по fake backend/capture/storage.
 
-Не выполнять сейчас. Создание карточки разрешено, реализация пользователем
-не выбрана. Ready/category A/B не заменяют selection и acceptance зависимостей.
+Выбрана пользователем 2026-11-02 в составе всего оставшегося PLAN-FE-001.
+Начинать по depends_on после checks/review prerequisites; внешние blockers
+не обходить и accepted автоматически не выставлять.
 
 ## Context
 
@@ -41,48 +43,48 @@ planned_paths:
 Backend SHA: `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6`; перед реализацией
 проверить актуальность. Ссылки внутри снимков относятся к backend, см. architecture.
 
-**Текущее:** Нет сквозных проверок state/навигации, existing widget_test пуст.
+**Исходное состояние:** Нет сквозных проверок state/навигации, existing widget_test пуст.
 
 **Целевое:** Детерминированная пользовательская regression matrix по fake backend/capture/storage.
 
-**Категория B, P1.** Сейчас можно реализовать с fake data по существующим DTO; живой end-to-end зависит от настроенного backend.
-FE prerequisites: [TASK-FE-001.12](TASK-FE-001.12.md), [TASK-FE-001.13](TASK-FE-001.13.md), [TASK-FE-001.23](TASK-FE-001.23.md), [TASK-FE-001.24](TASK-FE-001.24.md), [TASK-FE-001.29](TASK-FE-001.29.md), [TASK-FE-001.31](TASK-FE-001.31.md), [TASK-FE-001.32](TASK-FE-001.32.md), [TASK-FE-001.34](TASK-FE-001.34.md).
+**Категория B, P1.** Текущая UI/state-логика работает с реальными API. Test fakes допустимы только для проверки существующих контрактов, не для будущих бизнес-функций.
+FE prerequisites: [TASK-FE-001.12](TASK-FE-001.12.md), [TASK-FE-001.13](TASK-FE-001.13.md), [TASK-FE-001.23](TASK-FE-001.23.md), [TASK-FE-001.24](TASK-FE-001.24.md), [TASK-FE-001.29](TASK-FE-001.29.md), [TASK-FE-001.31](TASK-FE-001.31.md), [TASK-FE-001.32](TASK-FE-001.32.md), [TASK-FE-001.34](TASK-FE-001.34.md), [TASK-FE-001.48](TASK-FE-001.48.md), [TASK-FE-001.49](TASK-FE-001.49.md).
 Backend traceability: TASK-002.17
 API: A01–A03, W01–W09, U01–U04, R01–R05.
 
+## Requirements delta — 2026-10-26
+
+Исторические требования именования из UX сохраняются для будущего этапа. Текущая граница и критерии ниже пересмотрены 2026-11-02: только существующий backend, без names UI/mock/store и без блокировки самостоятельной текущей части.
+
+## Этап и решение — 2026-11-02
+
+Нужна: regression текущих сценариев с test fixtures действующих API; без demo naming suite.
+
+**Текущая работающая версия.** Production использует только существующие API/данные; изолированные fakes для тестов этих контрактов разрешены. Именование Speaker/назначения/именованный экспорт не prerequisite.
+
 ## Acceptance criteria
 
-- [ ] Покрыты login→workspace/anonymous→capture или picker→202→restart→canonical→summary/documents→delete→logout.
-- [ ] Покрыты lost upload response/replay409, offline/backoff429/502/503, 202failed/cancelled, no-speech, transcript ready+summary failed, artifact503, document404 и неполный original.
-- [ ] Покрыты owner isolation/expired session и обход отсутствующего confirm; assertions проверяют видимое поведение, а не только вызванные методы.
-- [ ] NOT RUN platform/model checks явно отделены; golden/theme redesign и CI не входят в task.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [ ] Journeys текущего реального wire: Stop/leave continue/confirm, pre-Start options, workspace→Record, canonical→transcript, background notice/Results restart, Play/Pause/seek, exports/delete/logout.
+- [ ] Все Speaker labels остаются backend labels; в видимом UI отсутствуют rename/contact assignment/save/Skip и runtime mock бизнес-данных.
+- [ ] Изолированные HTTP/hardware fakes допускаются только в tests существующих контрактов; future naming mock/model/draft suite не создаётся.
+- [ ] Покрыты lost upload/replay409, offline/backoff429/502/503, terminal202, no_speech, transcript+summary failed, artifact503/document404/incomplete original и owner isolation.
+- [ ] NOT RUN native/model/live API не выдаётся за PASS тестов; CI/golden redesign не входят.
+- [ ] Записаны релевантные format/analyze/tests или docs checks, команды/cwd/actual PASS/FAIL/NOT RUN и ограничения.
+- [ ] Независимый reviewer проверил выбранный scope; findings/ограничения записаны, accepted требует решения владельца.
 
 ## Implementation notes
 
-Scope/planned_paths в frontmatter — точные разрешаемые пути будущей реализации,
-включая эту карточку. Пока отсутствующие пути явно planned; некоторые создаются
-зависимостью раньше. Удалённый prerequisite retired файл не воссоздавать.
-Общие файлы — один writer; порядок DAG и координация PLAN-FE-001 обязательны.
-Owner назначается при выборе задачи, не агентом задним числом после изменений.
-
-Сохранять Riverpod/GoRouter/Dio и ручные DTO. Не добавлять неуказанные endpoints,
-новые dependencies/permissions/deployment behavior либо «попутные» исправления.
-Если проверки обнаружат проблему вне scope, сохранить evidence и предложить отдельное решение владельцу.
-Не изменять backend или BACKEND_* snapshots. Нет commit/push/merge/release разрешения.
+Выполнять только current scope по существующим API и точным frontmatter paths. Fakes относятся к tests реального wire/оборудования, не к runtime бизнес-данным будущего backend. Не добавлять layers/packages/неподтверждённые endpoints или player/editor abstractions на вырост. Один writer на shared paths, порядок DAG обязателен. Backend и BACKEND_* snapshots read-only. Текущая коррекция — документация; после review разрешено продолжение выбранного current этапа. Commit/push/merge запрещены.
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+План проверок текущего scope, **NOT RUN** в этой коррекции документации.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/journeys/batch_journey_test.dart test/journeys/batch_failure_test.dart test/journeys/batch_restart_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter test; flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Статус / граница |
+|---|---|
+| `flutter test test/journeys/batch_journey_test.dart test/journeys/batch_failure_test.dart test/journeys/batch_restart_test.dart` | NOT RUN; planned tests/docs не создаются этой коррекцией |
+| Формат/analyze только при реализации Dart, platform/live smoke при наличии разрешённой среды | NOT RUN; fakes не подтверждают native/model/стенд |
+| Полный diff, ссылки/DAG/paths и независимый review документации | Выполняются coordinator, результаты в PLAN/active-plan |
 
 ## Result
 
