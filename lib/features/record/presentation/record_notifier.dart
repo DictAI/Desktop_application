@@ -29,6 +29,7 @@ enum RecordStatus {
 class RecordState {
   const RecordState({
     this.status = RecordStatus.idle,
+    this.anonymous = false,
     this.captureSystemAudio = false,
     this.selectedWorkspaceId,
     this.selectedWorkspaceName,
@@ -43,6 +44,7 @@ class RecordState {
   });
 
   final RecordStatus status;
+  final bool anonymous;
   final bool captureSystemAudio;
   final String? selectedWorkspaceId, selectedWorkspaceName, errorMessage;
   final double? uploadProgress;
@@ -66,6 +68,7 @@ class RecordState {
 
   RecordState copyWith({
     RecordStatus? status,
+    bool? anonymous,
     bool? captureSystemAudio,
     String? selectedWorkspaceId,
     String? selectedWorkspaceName,
@@ -83,6 +86,7 @@ class RecordState {
     bool clearUpload = false,
   }) => RecordState(
     status: status ?? this.status,
+    anonymous: anonymous ?? this.anonymous,
     captureSystemAudio: captureSystemAudio ?? this.captureSystemAudio,
     selectedWorkspaceId: clearWorkspace
         ? null
@@ -207,12 +211,28 @@ class RecordNotifier extends StateNotifier<RecordState> {
     );
   }
 
+  void setAnonymous(bool value) {
+    if (hasActiveOperation || state.anonymous == value) return;
+    _pendingUploadId = null;
+    state = state.copyWith(
+      anonymous: value,
+      status: RecordStatus.idle,
+      clearError: true,
+      clearUpload: true,
+    );
+  }
+
   bool selectWorkspace(String id, String name) {
     if (hasActiveOperation) return false;
+    final modeChanged = state.anonymous;
+    if (modeChanged) _pendingUploadId = null;
     state = state.copyWith(
+      anonymous: false,
+      status: modeChanged ? RecordStatus.idle : null,
       selectedWorkspaceId: id,
       selectedWorkspaceName: name,
       clearError: true,
+      clearUpload: modeChanged,
     );
     return true;
   }
@@ -225,7 +245,9 @@ class RecordNotifier extends StateNotifier<RecordState> {
 
   void workspaceDeleted(String id) {
     if (state.selectedWorkspaceId != id) return;
-    if (hasActiveOperation) {
+    if (state.anonymous) {
+      state = state.copyWith(clearWorkspace: true);
+    } else if (hasActiveOperation) {
       setWorkspaceContextError(
         'Рабочее пространство удалено. Активная операция сохранена.',
       );
@@ -242,26 +264,13 @@ class RecordNotifier extends StateNotifier<RecordState> {
     state = state.copyWith(clearWorkspace: true, clearError: true);
   }
 
-  /// The legacy anonymous start keeps the common selectors locked until .24.
-  Future<void> runStartOperation(Future<void> Function() start) async {
-    if (hasActiveOperation) return;
-    final generation = ++_generation;
-    final previous = state.status;
-    state = state.copyWith(status: RecordStatus.starting);
-    try {
-      await start();
-    } finally {
-      if (_current(generation)) state = state.copyWith(status: previous);
-    }
-  }
-
   UploadOptions _options(
     UploadSource source, {
     UploadLanguage? language,
     bool? mixed,
   }) => UploadOptions(
-    anonymous: false,
-    workspaceId: state.selectedWorkspaceId,
+    anonymous: state.anonymous,
+    workspaceId: state.anonymous ? null : state.selectedWorkspaceId,
     idempotencyKey: List.generate(
       16,
       (_) => _random.nextInt(256),

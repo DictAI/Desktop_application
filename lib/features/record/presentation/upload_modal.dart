@@ -6,13 +6,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/providers.dart';
 import '../../auth/presentation/auth_notifier.dart';
 import '../data/dto/upload_options.dart';
-import 'anonymous_record_notifier.dart';
-import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 
 class UploadModal extends ConsumerStatefulWidget {
-  final bool anonymous;
-  const UploadModal({super.key, this.anonymous = false});
+  const UploadModal({super.key});
 
   @override
   ConsumerState<UploadModal> createState() => _UploadModalState();
@@ -46,8 +43,8 @@ class _UploadModalState extends ConsumerState<UploadModal> {
   void _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: widget.anonymous ? FileType.audio : FileType.custom,
-        allowedExtensions: widget.anonymous ? null : const ['wav'],
+        type: FileType.custom,
+        allowedExtensions: const ['wav'],
         allowMultiple: false,
       );
       if (!mounted || _invalidated) return;
@@ -61,11 +58,7 @@ class _UploadModalState extends ConsumerState<UploadModal> {
   }
 
   void _selectPath(String path) {
-    final lower = path.toLowerCase();
-    final extensions = widget.anonymous
-        ? const ['.wav', '.mp3', '.m4a', '.ogg', '.flac']
-        : const ['.wav'];
-    final allowed = extensions.any(lower.endsWith);
+    final allowed = path.toLowerCase().endsWith('.wav');
     setState(() {
       _selectedFile = allowed ? File(path) : null;
       _selectionError = allowed ? null : 'Выберите файл WAV.';
@@ -76,25 +69,22 @@ class _UploadModalState extends ConsumerState<UploadModal> {
     final file = _selectedFile;
     final record = ref.read(recordNotifierProvider.notifier);
     if (file == null || _invalidated || record.hasActiveOperation) return;
-    if (widget.anonymous) {
-      ref.read(anonRecordNotifierProvider.notifier).uploadPickedFile(file);
-      Navigator.of(context).pop();
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: 0.7),
-        builder: (_) => const LabelSpeakersModal(),
-      );
-    } else {
-      record.uploadFile(file, language: _language, mixed: _mixed);
-      Navigator.of(context).pop();
-    }
+    record.uploadFile(file, language: _language, mixed: _mixed);
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(authNotifierProvider, (_, _) => _invalidateSelection());
     ref.listen(sessionNotifierProvider, (_, _) => _invalidateSelection());
+    ref.listen(recordNotifierProvider, (previous, next) {
+      if (previous != null &&
+          (previous.anonymous != next.anonymous ||
+              !next.anonymous &&
+                  previous.selectedWorkspaceId != next.selectedWorkspaceId)) {
+        _invalidateSelection();
+      }
+    });
     final locked =
         _invalidated || ref.watch(recordNotifierProvider).controlsLocked;
     return Dialog(
@@ -172,11 +162,9 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                         color: AppColors.textSecondary,
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        widget.anonymous
-                            ? 'Drag and drop your audio file here'
-                            : 'Перетащите файл WAV',
-                        style: const TextStyle(
+                      const Text(
+                        'Перетащите файл WAV',
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                         ),
@@ -266,25 +254,23 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                 const SizedBox(height: 12),
                 Text(error, style: const TextStyle(color: AppColors.error)),
               ],
-              if (!widget.anonymous) ...[
-                const SizedBox(height: 12),
-                UploadLanguageControls(
-                  language: _language,
-                  mixed: _mixed,
-                  onLanguage: locked
-                      ? null
-                      : (value) => setState(() {
-                          _language = value;
-                          if (value != UploadLanguage.auto) _mixed = false;
-                        }),
-                  onMixed: locked
-                      ? null
-                      : (value) => setState(() {
-                          _mixed = value;
-                          if (value) _language = UploadLanguage.auto;
-                        }),
-                ),
-              ],
+              const SizedBox(height: 12),
+              UploadLanguageControls(
+                language: _language,
+                mixed: _mixed,
+                onLanguage: locked
+                    ? null
+                    : (value) => setState(() {
+                        _language = value;
+                        if (value != UploadLanguage.auto) _mixed = false;
+                      }),
+                onMixed: locked
+                    ? null
+                    : (value) => setState(() {
+                        _mixed = value;
+                        if (value) _language = UploadLanguage.auto;
+                      }),
+              ),
               const SizedBox(height: 20),
 
               Row(

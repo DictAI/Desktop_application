@@ -6,7 +6,6 @@ import '../data/dto/participant_dto.dart';
 import 'workspace_notifier.dart';
 import 'workspaces_screen.dart';
 import '../../record/presentation/record_notifier.dart';
-import '../../record/presentation/anonymous_record_notifier.dart';
 
 /// React-аналог: WorkspaceDetailPage.tsx
 /// Детальная страница воркспейса: информация + список участников +
@@ -105,13 +104,7 @@ class _DetailContent extends ConsumerWidget {
                       final recording = ref.exists(recordNotifierProvider)
                           ? ref.read(recordNotifierProvider.notifier)
                           : null;
-                      final anonymous = ref.exists(anonRecordNotifierProvider)
-                          ? ref.read(anonRecordNotifierProvider)
-                          : null;
-                      if (recording?.hasActiveOperation == true ||
-                          anonymous?.isActive == true ||
-                          anonymous?.status == AnonStatus.uploading ||
-                          anonymous?.status == AnonStatus.confirming) {
+                      if (recording?.hasActiveOperation == true) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(

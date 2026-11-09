@@ -5,8 +5,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
 import '../../workspace/presentation/workspaces_screen.dart';
 import '../../workspace/data/dto/workspace_dto.dart';
-import 'anonymous_record_notifier.dart';
-import 'label_speakers_modal.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 
@@ -20,7 +18,6 @@ class RecordScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
-  bool _anonymousMode = false;
   bool _confirmingStop = false;
 
   @override
@@ -52,11 +49,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         return;
       }
       final notifier = ref.read(recordNotifierProvider.notifier);
-      final anon = ref.read(anonRecordNotifierProvider);
-      if (notifier.hasActiveOperation ||
-          anon.isActive ||
-          anon.status == AnonStatus.uploading ||
-          anon.status == AnonStatus.confirming) {
+      if (notifier.hasActiveOperation) {
         notifier.setWorkspaceContextError(
           'Сначала завершите активную запись или отправку. Выбранное рабочее пространство не изменено.',
         );
@@ -72,9 +65,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         );
         return;
       }
-      if (notifier.selectWorkspace(id, workspace.name)) {
-        setState(() => _anonymousMode = false);
-      }
+      notifier.selectWorkspace(id, workspace.name);
     });
   }
 
@@ -82,18 +73,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(recordNotifierProvider);
     final notifier = ref.read(recordNotifierProvider.notifier);
-    final anonState = ref.watch(anonRecordNotifierProvider);
-    final isAnonRecording =
-        _anonymousMode && anonState.status == AnonStatus.recording;
-    final isEffectivelyActive =
-        isAnonRecording || (!_anonymousMode && state.isActive);
-    final locked =
-        state.controlsLocked ||
-        anonState.isActive ||
-        anonState.status == AnonStatus.uploading ||
-        anonState.status == AnonStatus.confirming;
+    final locked = state.controlsLocked;
     final canRecord =
-        !locked && (_anonymousMode || state.selectedWorkspaceId != null);
+        !locked && (state.anonymous || state.selectedWorkspaceId != null);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 40),
@@ -104,33 +86,28 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
             IgnorePointer(
               ignoring: locked,
               child: _AnonymousToggle(
-                value: _anonymousMode,
-                onChanged: (v) => setState(() => _anonymousMode = v),
+                value: state.anonymous,
+                onChanged: notifier.setAnonymous,
               ),
             ),
             const SizedBox(height: 28),
 
             _RecordButton(
-              status: isAnonRecording ? RecordStatus.recording : state.status,
-              anonymous: _anonymousMode,
-              onTap: isEffectivelyActive
+              status: state.status,
+              anonymous: state.anonymous,
+              onTap: state.isActive
                   ? () => _handleStop(notifier)
                   : canRecord
-                  ? () => _handleStart(notifier)
+                  ? notifier.startRecording
                   : null,
               onPause:
-                  (!_anonymousMode &&
-                      state.isActive &&
-                      notifier.supportsPause &&
-                      !_confirmingStop)
+                  (state.isActive && notifier.supportsPause && !_confirmingStop)
                   ? () => notifier.togglePause()
                   : null,
             ),
             const SizedBox(height: 32),
 
-            _RecordStatusWidget(
-              status: isAnonRecording ? RecordStatus.recording : state.status,
-            ),
+            _RecordStatusWidget(status: state.status),
             const SizedBox(height: 32),
 
             IgnorePointer(
@@ -154,10 +131,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
             const SizedBox(height: 24),
 
             AnimatedOpacity(
-              opacity: _anonymousMode ? 0.3 : 1.0,
+              opacity: state.anonymous ? 0.3 : 1.0,
               duration: const Duration(milliseconds: 200),
               child: IgnorePointer(
-                ignoring: _anonymousMode || locked,
+                ignoring: state.anonymous || locked,
                 child: _WorkspaceSelector(
                   selectedName: state.selectedWorkspaceName,
                   onSelect: notifier.selectWorkspace,
@@ -166,27 +143,22 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               ),
             ),
 
-            if (!_anonymousMode) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: 360,
-                child: UploadLanguageControls(
-                  language: state.language,
-                  mixed: state.mixed,
-                  onLanguage: locked ? null : notifier.setLanguage,
-                  onMixed: locked ? null : notifier.setMixed,
-                ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: 360,
+              child: UploadLanguageControls(
+                language: state.language,
+                mixed: state.mixed,
+                onLanguage: locked ? null : notifier.setLanguage,
+                onMixed: locked ? null : notifier.setMixed,
               ),
-            ],
+            ),
 
             const SizedBox(height: 32),
 
-            if (_anonymousMode || state.selectedWorkspaceId != null)
+            if (state.anonymous || state.selectedWorkspaceId != null)
               _UploadAudioButton(
-                onTap: locked
-                    ? null
-                    : () =>
-                          _showUploadModal(context, anonymous: _anonymousMode),
+                onTap: locked ? null : () => _showUploadModal(context),
                 isUploading: state.status == RecordStatus.uploading,
               ),
 
@@ -218,34 +190,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     );
   }
 
-  void _handleStart(RecordNotifier notifier) {
-    if (_anonymousMode) {
-      final recordState = ref.read(recordNotifierProvider);
-      notifier.runStartOperation(
-        () => ref
-            .read(anonRecordNotifierProvider.notifier)
-            .startRecording(
-              device: recordState.selectedDevice,
-              captureSystemAudio: recordState.captureSystemAudio,
-            ),
-      );
-    } else {
-      notifier.startRecording();
-    }
-  }
-
   Future<void> _handleStop(RecordNotifier notifier) async {
-    if (_anonymousMode) {
-      ref.read(anonRecordNotifierProvider.notifier).stopAndUpload();
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: 0.7),
-        builder: (_) => const LabelSpeakersModal(),
-      );
-      if (mounted) setState(() => _anonymousMode = false);
-      return;
-    }
     final identity = notifier.recordingIdentity;
     if (_confirmingStop || identity == null) return;
     setState(() => _confirmingStop = true);
@@ -277,11 +222,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     }
   }
 
-  void _showUploadModal(BuildContext context, {bool anonymous = false}) {
+  void _showUploadModal(BuildContext context) {
     showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.7),
-      builder: (_) => UploadModal(anonymous: anonymous),
+      builder: (_) => const UploadModal(),
     );
   }
 }
@@ -325,7 +270,7 @@ class _AnonymousToggle extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Anonymous mode',
+                      'Без рабочего пространства',
                       style: TextStyle(
                         color: value ? AppColors.accent : AppColors.textPrimary,
                         fontSize: 14,
@@ -333,7 +278,7 @@ class _AnonymousToggle extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Record without a workspace — label speakers after',
+                      'Запись и результаты видны только вам',
                       style: TextStyle(
                         color: value
                             ? AppColors.accent.withValues(alpha: 0.7)

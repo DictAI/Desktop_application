@@ -258,7 +258,7 @@ TASK-FE-001.51 <- TASK-FE-001.31, TASK-FE-001.50
 | [TASK-FE-001.21](../tasks/TASK-FE-001.21.md) | Добавить job status и anonymous session V2 контракты | A | P1 | review | 05, 06, 07 | /root/results_contracts | Точные пути в карточке |
 | [TASK-FE-001.22](../tasks/TASK-FE-001.22.md) | Добавить canonical transcript DTO и 200/202 result API | A | P1 | review | 05, 06, 07, 21 | /root/results_contracts | Точные пути в карточке |
 | [TASK-FE-001.23](../tasks/TASK-FE-001.23.md) | Перевести ordinary record/upload UX на V2 | B | P1 | review | 11, 13, 14, 15, 16, 17, 18, 19, 20, 25 | /root/ordinary_v2 | Точные пути в карточке |
-| [TASK-FE-001.24](../tasks/TASK-FE-001.24.md) | Заменить anonymous confirm на owner-only V2 batch UX | B | P1 | draft | 23 | unassigned | Точные пути в карточке |
+| [TASK-FE-001.24](../tasks/TASK-FE-001.24.md) | Заменить anonymous confirm на owner-only V2 batch UX | B | P1 | review | 23 | /root/ordinary_v2 | Точные пути в карточке |
 | [TASK-FE-001.25](../tasks/TASK-FE-001.25.md) | Организовать lifecycle polling и восстановление accepted jobs | B | P1 | review | 09, 14, 20, 21, 22 | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.26](../tasks/TASK-FE-001.26.md) | Закрепить V2 results list и pagination data | A | P1 | review | 05, 06, 07 | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.27](../tasks/TASK-FE-001.27.md) | Адаптировать библиотеку результатов и фильтры | B | P1 | review | 23, 25, 26 | /root/results_library | Точные пути в карточке |

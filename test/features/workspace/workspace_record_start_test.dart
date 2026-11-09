@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:dict_ai/app.dart';
@@ -6,9 +5,7 @@ import 'package:dict_ai/features/auth/presentation/auth_notifier.dart';
 import 'package:dict_ai/core/router/app_router.dart';
 import 'package:dict_ai/core/storage/secure_storage.dart';
 import 'package:dict_ai/core/theme/app_theme.dart';
-import 'package:dict_ai/features/record/data/anonymous_session_api.dart';
 import 'package:dict_ai/features/record/data/microphone_capture.dart';
-import 'package:dict_ai/features/record/presentation/anonymous_record_notifier.dart';
 import 'package:dict_ai/features/record/presentation/record_notifier.dart';
 import 'package:dict_ai/features/record/presentation/record_screen.dart';
 import 'package:dict_ai/features/workspace/data/dto/workspace_dto.dart';
@@ -44,17 +41,14 @@ class _Record extends RecordNotifier {
         session: () async =>
             throw StateError('Recording is outside this route fixture'),
       );
-  void snapshot(RecordStatus status) => state = RecordState(
-    status: status,
-    uploadProgress: status == RecordStatus.uploading ? 0 : null,
-    selectedWorkspaceId: _oldId,
-    selectedWorkspaceName: 'Existing selection',
-  );
-}
-
-class _Anon extends AnonRecordNotifier {
-  _Anon(Dio dio) : super(AnonymousSessionApi(dio));
-  void snapshot(AnonStatus status) => state = AnonState(status: status);
+  void snapshot(RecordStatus status, {bool anonymous = false}) =>
+      state = RecordState(
+        status: status,
+        anonymous: anonymous,
+        uploadProgress: status == RecordStatus.uploading ? 0 : null,
+        selectedWorkspaceId: _oldId,
+        selectedWorkspaceName: 'Existing selection',
+      );
 }
 
 void main() {
@@ -92,25 +86,22 @@ void main() {
     WidgetTester tester,
     ScriptedAdapter adapter, {
     RecordStatus? ordinary,
-    AnonStatus? anonymous,
+    RecordStatus? anonymous,
     String? directId,
     WorkspaceDto? extra,
   }) async {
     final dio = Dio(BaseOptions(baseUrl: 'https://fixture.invalid'))
       ..httpClientAdapter = adapter;
     final record = _Record();
-    final anon = _Anon(dio);
     if (ordinary != null) record.snapshot(ordinary);
-    if (anonymous != null) anon.snapshot(anonymous);
+    if (anonymous != null) record.snapshot(anonymous, anonymous: true);
     final container = ProviderContainer(
       overrides: [
         dioProvider.overrideWithValue(dio),
         recordNotifierProvider.overrideWith((_) => record),
-        anonRecordNotifierProvider.overrideWith((_) => anon),
       ],
     );
     container.read(recordNotifierProvider);
-    container.read(anonRecordNotifierProvider);
     final router = GoRouter(
       initialLocation: directId == null
           ? '/workspaces/$_id'
@@ -232,9 +223,10 @@ void main() {
   }
 
   for (final status in [
-    AnonStatus.recording,
-    AnonStatus.uploading,
-    AnonStatus.confirming,
+    RecordStatus.starting,
+    RecordStatus.recording,
+    RecordStatus.uploading,
+    RecordStatus.preparing,
   ]) {
     testWidgets(
       'New recording cannot overwrite an anonymous $status operation',
@@ -253,7 +245,10 @@ void main() {
           router.routeInformationProvider.value.uri.path,
           '/workspaces/$_id',
         );
-        expect(container.read(anonRecordNotifierProvider).status, status);
+        final recording = container.read(recordNotifierProvider);
+        expect(recording.status, status);
+        expect(recording.anonymous, isTrue);
+        expect(recording.selectedWorkspaceId, _oldId);
       },
     );
   }
@@ -307,24 +302,6 @@ void main() {
       );
     },
   );
-
-  testWidgets('pending anonymous start cannot accept a new workspace', (
-    tester,
-  ) async {
-    final adapter = ScriptedAdapter()
-      ..enqueue(200, _detail())
-      ..enqueue(200, []);
-    final (container, router) = await mount(tester, adapter);
-    final pending = Completer<void>();
-    final start = container
-        .read(recordNotifierProvider.notifier)
-        .runStartOperation(() => pending.future);
-    await tester.tap(find.text('Новая запись'));
-    await tester.pump();
-    expect(router.routeInformationProvider.value.uri.path, '/workspaces/$_id');
-    pending.complete();
-    await start;
-  });
 
   testWidgets(
     'Record uses the same workspace create form with error and retry',
