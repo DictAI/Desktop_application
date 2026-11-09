@@ -21,11 +21,15 @@ class RecordScreen extends ConsumerStatefulWidget {
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
   bool _anonymousMode = false;
+  bool _confirmingStop = false;
 
   @override
   void initState() {
     super.initState();
     _scheduleWorkspaceContext();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(recordNotifierProvider.notifier).refreshDevices();
+    });
   }
 
   @override
@@ -83,10 +87,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         _anonymousMode && anonState.status == AnonStatus.recording;
     final isEffectivelyActive =
         isAnonRecording || (!_anonymousMode && state.isActive);
-
-    final canRecord = _anonymousMode
-        ? !isEffectivelyActive
-        : !state.isActive && state.selectedWorkspaceId != null;
+    final locked =
+        state.controlsLocked ||
+        anonState.isActive ||
+        anonState.status == AnonStatus.uploading ||
+        anonState.status == AnonStatus.confirming;
+    final canRecord =
+        !locked && (_anonymousMode || state.selectedWorkspaceId != null);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 40),
@@ -95,7 +102,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             IgnorePointer(
-              ignoring: isEffectivelyActive,
+              ignoring: locked,
               child: _AnonymousToggle(
                 value: _anonymousMode,
                 onChanged: (v) => setState(() => _anonymousMode = v),
@@ -111,26 +118,38 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                   : canRecord
                   ? () => _handleStart(notifier)
                   : null,
-              onPause: (!_anonymousMode && state.isActive)
+              onPause:
+                  (!_anonymousMode &&
+                      state.isActive &&
+                      notifier.supportsPause &&
+                      !_confirmingStop)
                   ? () => notifier.togglePause()
                   : null,
             ),
             const SizedBox(height: 32),
 
-            _RecordStatusWidget(status: state.status),
+            _RecordStatusWidget(
+              status: isAnonRecording ? RecordStatus.recording : state.status,
+            ),
             const SizedBox(height: 32),
 
-            _DeviceSelector(
-              devices: state.inputDevices,
-              selected: state.selectedDevice,
-              onSelect: notifier.selectDevice,
-              onRefresh: notifier.refreshDevices,
+            IgnorePointer(
+              ignoring: locked,
+              child: _DeviceSelector(
+                devices: state.inputDevices,
+                selected: state.selectedDevice,
+                onSelect: notifier.selectDevice,
+                onRefresh: notifier.refreshDevices,
+              ),
             ),
             const SizedBox(height: 16),
 
-            _SystemAudioCheckbox(
-              value: state.captureSystemAudio,
-              onChanged: notifier.setCaptureSystemAudio,
+            IgnorePointer(
+              ignoring: locked,
+              child: _SystemAudioCheckbox(
+                value: state.captureSystemAudio,
+                onChanged: notifier.setCaptureSystemAudio,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -138,7 +157,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               opacity: _anonymousMode ? 0.3 : 1.0,
               duration: const Duration(milliseconds: 200),
               child: IgnorePointer(
-                ignoring: _anonymousMode,
+                ignoring: _anonymousMode || locked,
                 child: _WorkspaceSelector(
                   selectedName: state.selectedWorkspaceName,
                   onSelect: notifier.selectWorkspace,
@@ -147,25 +166,44 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               ),
             ),
 
+            if (!_anonymousMode) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 360,
+                child: UploadLanguageControls(
+                  language: state.language,
+                  mixed: state.mixed,
+                  onLanguage: locked ? null : notifier.setLanguage,
+                  onMixed: locked ? null : notifier.setMixed,
+                ),
+              ),
+            ],
+
             const SizedBox(height: 32),
 
-            _UploadAudioButton(
-              onTap: () => _showUploadModal(context, anonymous: _anonymousMode),
-              isUploading: state.status == RecordStatus.uploading,
-            ),
+            if (_anonymousMode || state.selectedWorkspaceId != null)
+              _UploadAudioButton(
+                onTap: locked
+                    ? null
+                    : () =>
+                          _showUploadModal(context, anonymous: _anonymousMode),
+                isUploading: state.status == RecordStatus.uploading,
+              ),
 
             if (state.status == RecordStatus.uploading) ...[
               const SizedBox(height: 20),
               _UploadProgressBar(progress: state.uploadProgress),
             ],
 
-            if (state.status == RecordStatus.done) ...[
+            if (state.status == RecordStatus.accepted) ...[
               const SizedBox(height: 20),
-              _UploadSuccess(
-                audioId: state.uploadedAudioId!,
-                onReset: notifier.reset,
-              ),
+              _UploadSuccess(onReset: notifier.reset),
             ],
+            if (state.canRetryUpload)
+              TextButton(
+                onPressed: locked ? null : notifier.retryUpload,
+                child: const Text('Повторить сохранённую отправку'),
+              ),
 
             if (state.errorMessage != null) ...[
               const SizedBox(height: 20),
@@ -192,21 +230,50 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
             ),
       );
     } else {
-      notifier.toggleRecording();
+      notifier.startRecording();
     }
   }
 
-  void _handleStop(RecordNotifier notifier) {
+  Future<void> _handleStop(RecordNotifier notifier) async {
     if (_anonymousMode) {
       ref.read(anonRecordNotifierProvider.notifier).stopAndUpload();
-      showDialog<void>(
+      await showDialog<void>(
         context: context,
         barrierDismissible: false,
         barrierColor: Colors.black.withValues(alpha: 0.7),
         builder: (_) => const LabelSpeakersModal(),
-      ).then((_) => setState(() => _anonymousMode = false));
-    } else {
-      notifier.toggleRecording();
+      );
+      if (mounted) setState(() => _anonymousMode = false);
+      return;
+    }
+    final identity = notifier.recordingIdentity;
+    if (_confirmingStop || identity == null) return;
+    setState(() => _confirmingStop = true);
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Завершить запись?'),
+          content: const Text('Готовый WAV будет отправлен на обработку.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Продолжить запись'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Завершить и отправить'),
+            ),
+          ],
+        ),
+      );
+      if (mounted &&
+          confirmed == true &&
+          identical(identity, notifier.recordingIdentity)) {
+        await notifier.finishRecording(confirmed: true);
+      }
+    } finally {
+      if (mounted) setState(() => _confirmingStop = false);
     }
   }
 
@@ -481,7 +548,9 @@ class _RecordStatusWidget extends StatelessWidget {
       RecordStatus.recording => ('Recording...', 'Tap stop to finish'),
       RecordStatus.paused => ('Paused', 'Tap stop to finish & upload'),
       RecordStatus.uploading => ('Uploading...', ''),
-      RecordStatus.done => ('Upload complete', ''),
+      RecordStatus.starting => ('Подготовка записи…', ''),
+      RecordStatus.preparing => ('Подготовка WAV…', ''),
+      RecordStatus.accepted => ('Отправка принята', 'Ожидание обработки'),
       RecordStatus.error => ('', ''), // error shown in banner below
       _ => ('Ready to Record', 'Tap the button to start'),
     };
@@ -976,7 +1045,7 @@ class _IconSquareButton extends StatelessWidget {
 // Кнопка загрузки файла
 
 class _UploadAudioButton extends StatelessWidget {
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool isUploading;
 
   const _UploadAudioButton({required this.onTap, required this.isUploading});
@@ -1018,7 +1087,7 @@ class _UploadAudioButton extends StatelessWidget {
 // Прогресс-бар загрузки
 
 class _UploadProgressBar extends StatelessWidget {
-  final double progress;
+  final double? progress;
   const _UploadProgressBar({required this.progress});
 
   @override
@@ -1038,13 +1107,14 @@ class _UploadProgressBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            '${(progress * 100).toInt()}%',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
+          if (progress case final value?)
+            Text(
+              '${(value * 100).toInt()}%',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -1054,10 +1124,9 @@ class _UploadProgressBar extends StatelessWidget {
 // Успешная загрузка
 
 class _UploadSuccess extends StatelessWidget {
-  final String audioId;
   final VoidCallback onReset;
 
-  const _UploadSuccess({required this.audioId, required this.onReset});
+  const _UploadSuccess({required this.onReset});
 
   @override
   Widget build(BuildContext context) {
@@ -1079,7 +1148,7 @@ class _UploadSuccess extends StatelessWidget {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Uploaded successfully! Processing has started.',
+              'Сервер принял WAV. Результат появится после обработки.',
               style: TextStyle(color: AppColors.success, fontSize: 13),
             ),
           ),

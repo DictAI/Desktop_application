@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dict_ai/core/theme/app_theme.dart';
+import 'package:dict_ai/features/auth/presentation/auth_notifier.dart';
+import 'package:dict_ai/features/record/data/microphone_capture.dart';
 import 'package:dict_ai/features/record/presentation/record_notifier.dart';
 import 'package:dict_ai/features/record/presentation/record_screen.dart';
 import 'package:dict_ai/features/workspace/presentation/workspace_detail_screen.dart';
@@ -11,6 +14,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/fakes.dart';
@@ -57,7 +61,12 @@ ProviderContainer _container(WidgetTester tester, _WorkspaceAdapter adapter) {
   final dio = Dio(BaseOptions(baseUrl: 'https://fixture.invalid'))
     ..httpClientAdapter = adapter;
   final container = ProviderContainer(
-    overrides: [dioProvider.overrideWithValue(dio)],
+    overrides: [
+      dioProvider.overrideWithValue(dio),
+      recordCaptureFactoryProvider.overrideWithValue(
+        (_) => MicrophoneCapture(isMacOS: true),
+      ),
+    ],
   );
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -197,6 +206,13 @@ void main() {
   testWidgets(
     'empty workspace reaches microphone permission and accepts a WAV selection',
     (tester) async {
+      resetStorageFakes();
+      String segment(Object value) =>
+          base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+      FlutterSecureStorage.setMockInitialValues({
+        'jwt_token':
+            '${segment({'alg': 'HS256'})}.${segment({'iss': 'dictai-auth-v2', 'aud': 'dictai-user', 'user_id': _ownerId, 'exp': DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch ~/ 1000})}.fixture',
+      });
       const recorder = MethodChannel('com.llfbandit.record/messages');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -213,6 +229,8 @@ void main() {
           case 'hasPermission':
             permissionChecks++;
             return false;
+          case 'listInputDevices':
+            return [];
           case 'dispose':
             return null;
           default:
@@ -254,7 +272,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(permissionChecks, beforeStart + 1);
       expect(
-        find.textContaining('Microphone permission denied.'),
+        find.textContaining('Разрешите доступ к микрофону'),
         findsOneWidget,
       );
 
@@ -283,6 +301,7 @@ void main() {
         '/workspaces/',
       ]);
       expect(tester.takeException(), isNull);
+      await container.read(authNotifierProvider.notifier).logout();
     },
   );
 }

@@ -2,8 +2,8 @@
 id: TASK-FE-001.23
 plan: PLAN-FE-001
 title: "Перевести ordinary record/upload UX на V2"
-status: draft
-owner: unassigned
+status: review
+owner: /root/ordinary_v2
 priority: P1
 readiness_category: B
 phase: "2"
@@ -17,6 +17,8 @@ scope:
   - "lib/features/record/presentation/upload_modal.dart"
   - "lib/shared/providers/providers.dart"
   - "test/features/record/ordinary_flow_test.dart"
+  - "test/features/workspace/profile_free_flow_test.dart"
+  - "test/features/workspace/workspace_record_start_test.dart"
   - "docs/ai/tasks/TASK-FE-001.23.md"
 planned_paths:
   - "test/features/record/ordinary_flow_test.dart"
@@ -54,7 +56,7 @@ API: U01, R03.
 
 [Окончательный UX](../research/FRONTEND_TARGET_UX.ru.md) и [backend change requests](../research/FRONTEND_BACKEND_CHANGE_REQUESTS.ru.md) уточняют планирование этой карточки. Исполнение после завершения текущего пересмотра и независимого review; будущие задачи не выбираются.
 
-Здесь реализуется V2 pipeline и точки requestStop/confirmedFinish, без второго собственного диалога. .49 объединит финальное поведение Stop и ухода. После 202 открытие waiting/detail подключает .28; current readiness/transcript notice — .48. Назначения не входят в текущий этап, future editor routing подключит .50 после backend.
+Обычная запись использует одно подтверждение Stop. .49 объединит подтверждение для обоих режимов и добавит защиту при уходе с экрана. После 202 полноценный экран ожидания и результата подключит .28, уведомление о готовности подключит .48. Будущий редактор назначений подключает .50 после backend.
 
 ## Этап и решение — 2026-11-02
 
@@ -64,14 +66,14 @@ API: U01, R03.
 
 ## Acceptance criteria
 
-- [ ] До Start доступны workspace/mic/system/language; активные параметры фиксированы. Вход из workspace сохраняет переданный контекст.
-- [ ] V2 finish pipeline принимает явный confirmed intent: WAV finalize/validate → durable journal → один upload. Диалог/route guard реализует .49; preview отсутствует. До .49 итоговый record UX не объявляется готовым.
-- [ ] Сохранены record button, device selector, workspace selector, file picker и общий visual style; профили/непустые контакты не нужны.
-- [ ] Capture/pause/upload статусы блокируют конкурирующие start/mode/device/workspace changes; combined pause честно отключён, если adapter не поддерживает синхронность.
-- [ ] Options выбираются до Start (для picker — до upload); validation финального WAV перед upload; progress не выдаётся за ASR progress, 202 ведёт к job tracking без обещания готового результата.
-- [ ] Journal записан до запроса, accepted metadata сохранены и текущий job передан .25; abort локального запроса не объявляется server cancel.
-- [ ] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
+- [x] До Start доступны workspace/mic/system/language; активные параметры фиксированы. Вход из workspace сохраняет переданный контекст.
+- [x] Явное подтверждение ordinary Stop запускает WAV finalize/validate → durable journal → один upload. Отмена сохраняет запись. .49 объединяет диалог для обоих режимов и защищает уход с экрана.
+- [x] Сохранены record button, device selector, workspace selector, file picker и общий visual style; профили/непустые контакты не нужны.
+- [x] Capture/pause/upload статусы блокируют конкурирующие start/mode/device/workspace changes; combined pause честно отключён, если adapter не поддерживает синхронность.
+- [x] Options выбираются до Start (для picker — до upload); validation финального WAV перед upload; progress не выдаётся за ASR progress, 202 ведёт к job tracking без обещания готового результата.
+- [x] Journal записан до запроса, accepted metadata сохранены и текущий job передан .25; abort локального запроса не объявляется server cancel.
+- [x] Targeted checks и relevant format/analyze/platform evidence записаны; FAIL/SKIP/NOT RUN не выданы за PASS.
+- [x] Независимый reviewer, не писавший implementation, проверил diff; findings и решение владельца зафиксированы.
 
 ## Уточнение platform capture — 2026-11-03
 
@@ -80,6 +82,10 @@ API: U01, R03.
 recorder при ошибке не допускается. Кнопка Pause следует supportsPause adapter.
 
 ## Implementation notes
+
+Два workspace-регрессионных теста входят в scope для перехода со старых
+MethodChannel и конструктора RecordNotifier на тестовые границы V2. Проверки
+контекста workspace и отсутствия требования голосового профиля сохраняются.
 
 Scope/planned_paths в frontmatter — точные разрешаемые пути будущей реализации,
 включая эту карточку. Пока отсутствующие пути явно planned; некоторые создаются
@@ -90,25 +96,40 @@ Owner назначается при выборе задачи, не агенто
 Сохранять Riverpod/GoRouter/Dio и ручные DTO. Не добавлять неуказанные endpoints,
 новые dependencies/permissions/deployment behavior либо «попутные» исправления.
 Если проверки обнаружат проблему вне scope, сохранить evidence и предложить отдельное решение владельцу.
-Не изменять backend или BACKEND_* snapshots. Нет commit/push/merge/release разрешения.
+Backend и BACKEND_* snapshots только для сверки. После проверок и независимого review коммит и push в main выполняет координатор по поручению владельца от 2026-11-07.
 
 ## Verification
 
-Cwd — корень frontend. Ниже план, а не выполненные проверки. Нужные tests/docs
-могут пока отсутствовать: они указаны в planned_paths. После реализации записать
-точную среду/команды/actual outcome, включая skips и внешние ограничения.
+2026-11-09. Cwd `/Users/verliiar/Desktop_application`, macOS arm64, закреплённый
+Flutter 3.41.3 и Dart 3.11.1 из `.dart_tool/codex-tools/flutter`.
 
-| Command / scenario | Environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/record/ordinary_flow_test.dart` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| `flutter analyze` | Совместимый SDK после .01, fake dependencies если не выбран real smoke | Acceptance criteria подтверждены, ошибки не скрыты | Не запускалось | NOT RUN | Сейчас только planning; prerequisites/среда не подтверждены |
-| Ordinary flow: preselected options, confirmed intent, invalid WAV, double-send и accepted waiting state | Frontend; SDK после .01, deterministic fakes / явно указанный host | Уточнённые UX criteria и реальные границы подтверждены | Не запускалось | NOT RUN | Только planning; mock не доказывает server persistence/export |
-| Полный diff, scope, формат изменённых существующих Dart-файлов и независимый review | Frontend / нужная платформа | Нет посторонних изменений/секретов/retired API | Не запускалось | NOT RUN | Удалённые файлы в format не передавать; platform checks не заменять mocks |
+| Проверка | Результат |
+|---|---|
+| `PUB_CACHE=/Users/verliiar/.pub-cache .dart_tool/codex-tools/flutter/bin/flutter test --no-pub --reporter expanded test/features/record/ordinary_flow_test.dart test/features/workspace/profile_free_flow_test.dart test/features/workspace/workspace_record_start_test.dart` | PASS, 23 теста, включая 7 сценариев ordinary и workspace regressions |
+| `PUB_CACHE=/Users/verliiar/.pub-cache .dart_tool/codex-tools/flutter/bin/flutter analyze --no-pub` по семи Dart-файлам scope | PASS, замечаний анализатора нет |
+| `.dart_tool/codex-tools/flutter/bin/cache/dart-sdk/bin/dart format --output=none --set-exit-if-changed` по семи Dart-файлам scope | PASS, 0 changed |
+| `git diff --check` по scope, сверка реальных U01 и R03 на backend SHA `f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6` | PASS |
+| Полный `flutter test --no-pub --reporter expanded` из изолированной копии `88248be` с изменениями только .23 | PASS, 522 теста. Семь изменённых Dart-файлов совпадают с проверенной копией |
+| Живой захват macOS/Linux и загрузка на тестовый gateway | NOT RUN. Платформенный smoke .36/.37 и сквозная проверка .40 отдельны |
+| Независимый [REVIEW-FE-001.23-01](../reviews/REVIEW-FE-001.23-01.md) | PASS. F01/F02 исправлены, 23 независимых теста, открытых замечаний нет |
 
 ## Result
 
-Не реализовано. Код, API-клиенты, DTO и dependencies этим planning-проходом
-не менялись. Реальные результаты добавит выбранный implementer после исполнения.
-Review плана не является review кода или PASS будущих tests.
-Основание приёмки отсутствует: implemented ≠ verified ≠ accepted.
-Только пользователь принимает scope/ограничения; публикация отдельно.
+Обычная запись с workspace и импорт WAV используют готовые адаптеры и U01.
+Язык, mixed, workspace, источник и ключ фиксируются до захвата или импорта.
+Подтверждённый Stop ждёт незавершённую паузу, затем ровно один раз завершает
+захват. Перед POST журнал проверяет скопированный WAV и сохраняет ключ и
+параметры. При временном сбое кнопка повтора отправляет те же сохранённые данные.
+Исходник импортированного файла остаётся у пользователя.
+
+Общая сессия из `providers.dart` связывает журнал и tracker с владельцем.
+Выход из аккаунта синхронно отменяет прежние сетевые запросы. Ответ 202
+сохраняется в журнале и передаётся tracker, интерфейс показывает принятие в
+обработку. Тесты подтвердили отсутствие второго POST при двойном Stop и
+изоляцию позднего ответа при смене аккаунта.
+
+Изменены RecordNotifier, RecordScreen, UploadModal, providers, добавлен
+`ordinary_flow_test.dart`, адаптированы две workspace-фикстуры. Прежний
+анонимный режим меняется в .24. Полный экран ожидания подключает .28, защиту
+ухода добавляет .49. Платформенные smoke и live gateway остаются отдельными
+проверками. Формальная приёмка ожидает владельца.

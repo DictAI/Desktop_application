@@ -7,7 +7,7 @@ import 'package:dict_ai/core/router/app_router.dart';
 import 'package:dict_ai/core/storage/secure_storage.dart';
 import 'package:dict_ai/core/theme/app_theme.dart';
 import 'package:dict_ai/features/record/data/anonymous_session_api.dart';
-import 'package:dict_ai/features/record/data/audio_ingest_api.dart';
+import 'package:dict_ai/features/record/data/microphone_capture.dart';
 import 'package:dict_ai/features/record/presentation/anonymous_record_notifier.dart';
 import 'package:dict_ai/features/record/presentation/record_notifier.dart';
 import 'package:dict_ai/features/record/presentation/record_screen.dart';
@@ -38,9 +38,15 @@ Map<String, Object> _page() => {
 };
 
 class _Record extends RecordNotifier {
-  _Record(Dio dio) : super(AudioIngestApi(dio));
+  _Record()
+    : super(
+        captureFactory: (_) => MicrophoneCapture(isMacOS: true),
+        session: () async =>
+            throw StateError('Recording is outside this route fixture'),
+      );
   void snapshot(RecordStatus status) => state = RecordState(
     status: status,
+    uploadProgress: status == RecordStatus.uploading ? 0 : null,
     selectedWorkspaceId: _oldId,
     selectedWorkspaceName: 'Existing selection',
   );
@@ -69,6 +75,7 @@ void main() {
         return null;
       }
       if (call.method == 'hasPermission') return false;
+      if (call.method == 'listInputDevices') return [];
       if (call.method == 'dispose') return null;
       fail('Unexpected native call ${call.method}');
     });
@@ -91,7 +98,7 @@ void main() {
   }) async {
     final dio = Dio(BaseOptions(baseUrl: 'https://fixture.invalid'))
       ..httpClientAdapter = adapter;
-    final record = _Record(dio);
+    final record = _Record();
     final anon = _Anon(dio);
     if (ordinary != null) record.snapshot(ordinary);
     if (anonymous != null) anon.snapshot(anonymous);
@@ -362,6 +369,9 @@ void main() {
       overrides: [
         dioProvider.overrideWithValue(dio),
         secureStorageProvider.overrideWithValue(storage),
+        recordCaptureFactoryProvider.overrideWithValue(
+          (_) => MicrophoneCapture(isMacOS: true),
+        ),
       ],
     );
     final router = container.read(routerProvider);

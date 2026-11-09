@@ -1,105 +1,211 @@
+import 'dart:async';
 import 'dart:io';
-import 'package:flutter/services.dart';
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+
 import '../../../core/error/app_exception.dart';
 import '../../../shared/providers/providers.dart';
-import '../data/audio_ingest_api.dart';
-import '../data/system_audio_service.dart';
+import '../../auth/presentation/auth_notifier.dart';
+import '../data/audio_capture.dart';
+import '../data/dto/upload_accepted_dto.dart';
+import '../data/dto/upload_options.dart';
+import '../data/linux_audio_capture.dart';
+import '../data/macos_audio_capture.dart';
+import '../data/microphone_capture.dart';
 
-enum RecordStatus { idle, recording, paused, uploading, done, error }
+enum RecordStatus {
+  idle,
+  starting,
+  recording,
+  paused,
+  preparing,
+  uploading,
+  accepted,
+  error,
+}
 
 class RecordState {
-  final RecordStatus status;
-  final bool captureSystemAudio;
-  final String? selectedWorkspaceId;
-  final String? selectedWorkspaceName;
-  final String? uploadedAudioId;
-  final String? errorMessage;
-  final double uploadProgress;
-  final List<InputDevice> inputDevices;
-  final InputDevice? selectedDevice;
-
   const RecordState({
     this.status = RecordStatus.idle,
     this.captureSystemAudio = false,
     this.selectedWorkspaceId,
     this.selectedWorkspaceName,
-    this.uploadedAudioId,
     this.errorMessage,
-    this.uploadProgress = 0,
+    this.uploadProgress,
     this.inputDevices = const [],
     this.selectedDevice,
+    this.language = UploadLanguage.auto,
+    this.mixed = false,
+    this.accepted,
+    this.canRetryUpload = false,
   });
 
-  bool get isRecording => status == RecordStatus.recording;
-  bool get isPaused => status == RecordStatus.paused;
+  final RecordStatus status;
+  final bool captureSystemAudio;
+  final String? selectedWorkspaceId, selectedWorkspaceName, errorMessage;
+  final double? uploadProgress;
+  final List<InputDevice> inputDevices;
+  final InputDevice? selectedDevice;
+  final UploadLanguage language;
+  final bool mixed;
+  final UploadAcceptedDto? accepted;
+  final bool canRetryUpload;
+
   bool get isActive =>
       status == RecordStatus.recording || status == RecordStatus.paused;
+  bool get controlsLocked =>
+      isActive ||
+      switch (status) {
+        RecordStatus.starting ||
+        RecordStatus.preparing ||
+        RecordStatus.uploading => true,
+        _ => false,
+      };
 
   RecordState copyWith({
     RecordStatus? status,
     bool? captureSystemAudio,
     String? selectedWorkspaceId,
     String? selectedWorkspaceName,
-    String? uploadedAudioId,
     String? errorMessage,
     double? uploadProgress,
     List<InputDevice>? inputDevices,
     InputDevice? selectedDevice,
+    UploadLanguage? language,
+    bool? mixed,
+    UploadAcceptedDto? accepted,
+    bool? canRetryUpload,
     bool clearDevice = false,
+    bool clearWorkspace = false,
     bool clearError = false,
+    bool clearUpload = false,
   }) => RecordState(
     status: status ?? this.status,
     captureSystemAudio: captureSystemAudio ?? this.captureSystemAudio,
-    selectedWorkspaceId: selectedWorkspaceId ?? this.selectedWorkspaceId,
-    selectedWorkspaceName: selectedWorkspaceName ?? this.selectedWorkspaceName,
-    uploadedAudioId: uploadedAudioId ?? this.uploadedAudioId,
-    errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-    uploadProgress: uploadProgress ?? this.uploadProgress,
-    inputDevices: inputDevices ?? this.inputDevices,
-    selectedDevice: clearDevice
+    selectedWorkspaceId: clearWorkspace
         ? null
-        : (selectedDevice ?? this.selectedDevice),
+        : selectedWorkspaceId ?? this.selectedWorkspaceId,
+    selectedWorkspaceName: clearWorkspace
+        ? null
+        : selectedWorkspaceName ?? this.selectedWorkspaceName,
+    errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+    uploadProgress: clearUpload ? null : uploadProgress ?? this.uploadProgress,
+    inputDevices: inputDevices ?? this.inputDevices,
+    selectedDevice: clearDevice ? null : selectedDevice ?? this.selectedDevice,
+    language: language ?? this.language,
+    mixed: mixed ?? this.mixed,
+    accepted: clearUpload ? null : accepted ?? this.accepted,
+    canRetryUpload:
+        canRetryUpload ?? (clearUpload ? false : this.canRetryUpload),
   );
 }
 
+typedef RecordCaptureFactory = AudioCapture Function(bool captureSystemAudio);
+
+final recordCaptureFactoryProvider = Provider<RecordCaptureFactory>(
+  (ref) => (system) {
+    if (Platform.isLinux) return LinuxAudioCapture(captureSystemAudio: system);
+    if (Platform.isMacOS) {
+      return system ? MacosAudioCapture() : MicrophoneCapture();
+    }
+    throw const ValidationException('Запись доступна в macOS и Linux.');
+  },
+);
+
 class RecordNotifier extends StateNotifier<RecordState> {
-  final AudioIngestApi _api;
-  final AudioRecorder _recorder = AudioRecorder();
-  final SystemAudioService _sysAudio = SystemAudioService();
+  RecordNotifier({
+    required RecordCaptureFactory captureFactory,
+    required Future<BatchSession> Function() session,
+  }) : _captureFactory = captureFactory,
+       _openSession = session,
+       super(const RecordState());
 
-  String? _sysAudioPath;
-  String? _micAudioPath;
-  Process? _parecProcess;
-  bool _startingRecording = false;
+  final RecordCaptureFactory _captureFactory;
+  final Future<BatchSession> Function() _openSession;
+  final _random = Random.secure();
+  AudioCapture? _capture;
+  Future<void>? _releasing;
+  UploadOptions? _recordingOptions;
+  BatchSession? _session;
+  String? _pendingUploadId;
+  int _generation = 0;
+  Future<void>? _pauseTransition;
+  bool _refreshingDevices = false;
 
-  bool get hasActiveOperation =>
-      _startingRecording ||
-      state.isActive ||
-      state.status == RecordStatus.uploading;
+  bool get hasActiveOperation => state.controlsLocked;
+  bool get supportsPause => _capture?.supportsPause ?? false;
+  Object? get recordingIdentity => _recordingOptions;
 
-  RecordNotifier(this._api) : super(const RecordState()) {
-    _loadDevices();
+  bool _current(int generation) => mounted && _generation == generation;
+
+  bool _currentSession(int generation, BatchSession session) {
+    if (!_current(generation)) return false;
+    if (!session.isCurrent) throw const UnauthorizedException();
+    return true;
   }
 
-  Future<void> _loadDevices() async {
-    final hasPerm = await _recorder.hasPermission();
-    if (!mounted || !hasPerm) return;
-    final devices = await _recorder.listInputDevices();
-    if (mounted) state = state.copyWith(inputDevices: devices);
+  Future<void> refreshDevices() async {
+    if (_refreshingDevices || hasActiveOperation) return;
+    _refreshingDevices = true;
+    final generation = _generation;
+    AudioCapture? probe;
+    try {
+      probe = _captureFactory(false);
+      final devices = await probe.listInputDevices();
+      if (!_current(generation) || hasActiveOperation) return;
+      final selected = state.selectedDevice;
+      final sameDevice = devices
+          .where((device) => device.id == selected?.id)
+          .firstOrNull;
+      state = state.copyWith(
+        inputDevices: devices,
+        selectedDevice: sameDevice,
+        clearDevice: sameDevice == null,
+      );
+    } on AppException catch (error) {
+      if (_current(generation) && !hasActiveOperation) {
+        setWorkspaceContextError(error.message);
+      }
+    } finally {
+      try {
+        await probe?.dispose();
+      } on AppException catch (error) {
+        if (_current(generation) && !hasActiveOperation) {
+          setWorkspaceContextError(error.message);
+        }
+      } finally {
+        _refreshingDevices = false;
+      }
+    }
   }
 
-  Future<void> refreshDevices() => _loadDevices();
+  void selectDevice(InputDevice? device) {
+    if (hasActiveOperation) return;
+    state = state.copyWith(selectedDevice: device, clearDevice: device == null);
+  }
 
-  void selectDevice(InputDevice? device) => state = state.copyWith(
-    selectedDevice: device,
-    clearDevice: device == null,
-  );
+  void setCaptureSystemAudio(bool value) {
+    if (hasActiveOperation) return;
+    state = state.copyWith(captureSystemAudio: value);
+  }
 
-  void setCaptureSystemAudio(bool value) =>
-      state = state.copyWith(captureSystemAudio: value);
+  void setLanguage(UploadLanguage language) {
+    if (hasActiveOperation) return;
+    state = state.copyWith(
+      language: language,
+      mixed: language == UploadLanguage.auto && state.mixed,
+    );
+  }
+
+  void setMixed(bool mixed) {
+    if (hasActiveOperation) return;
+    state = state.copyWith(
+      mixed: mixed,
+      language: mixed ? UploadLanguage.auto : null,
+    );
+  }
 
   bool selectWorkspace(String id, String name) {
     if (hasActiveOperation) return false;
@@ -128,406 +234,328 @@ class RecordNotifier extends StateNotifier<RecordState> {
     }
   }
 
-  void setWorkspaceContextError(String message) {
-    state = state.copyWith(errorMessage: message);
-  }
+  void setWorkspaceContextError(String message) =>
+      state = state.copyWith(errorMessage: message);
 
   void clearWorkspace() {
     if (hasActiveOperation) return;
-    state = RecordState(
-      inputDevices: state.inputDevices,
-      selectedDevice: state.selectedDevice,
-      captureSystemAudio: state.captureSystemAudio,
-    );
+    state = state.copyWith(clearWorkspace: true, clearError: true);
   }
 
-  /// Shared guard also covers permission checks before anonymous capture starts.
+  /// The legacy anonymous start keeps the common selectors locked until .24.
   Future<void> runStartOperation(Future<void> Function() start) async {
     if (hasActiveOperation) return;
-    _startingRecording = true;
+    final generation = ++_generation;
+    final previous = state.status;
+    state = state.copyWith(status: RecordStatus.starting);
     try {
       await start();
     } finally {
-      _startingRecording = false;
+      if (_current(generation)) state = state.copyWith(status: previous);
     }
   }
 
-  Future<void> toggleRecording() async {
-    if (_startingRecording || state.status == RecordStatus.uploading) return;
-    if (state.isActive) {
-      await _stopAndUpload();
-    } else {
-      await runStartOperation(_startRecording);
-    }
-  }
+  UploadOptions _options(
+    UploadSource source, {
+    UploadLanguage? language,
+    bool? mixed,
+  }) => UploadOptions(
+    anonymous: false,
+    workspaceId: state.selectedWorkspaceId,
+    idempotencyKey: List.generate(
+      16,
+      (_) => _random.nextInt(256),
+    ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
+    source: source,
+    language: language ?? state.language,
+    mixed: mixed ?? state.mixed,
+  );
 
-  Future<void> togglePause() async {
-    if (state.status == RecordStatus.recording) {
-      await _recorder.pause();
-      state = state.copyWith(status: RecordStatus.paused);
-    } else if (state.status == RecordStatus.paused) {
-      await _recorder.resume();
-      state = state.copyWith(status: RecordStatus.recording);
-    }
-  }
-
-  Future<void> _startRecording() async {
-    if (state.selectedWorkspaceId == null ||
-        state.selectedWorkspaceId!.isEmpty) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage:
-            'Please select a workspace before recording.\n'
-            'Choose one from the dropdown below or create a new one with "+".',
-      );
-      return;
-    }
-
-    if (state.captureSystemAudio && !Platform.isLinux) {
-      await _startMicAndSystem();
-    } else if (state.captureSystemAudio && Platform.isLinux) {
-      await _startMicAndSystemLinux();
-    } else {
-      await _startMicrophone();
-    }
-  }
-
-  Future<void> _startMicrophone() async {
-    final hasPermission = await _recorder.hasPermission();
-    if (!hasPermission) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: Platform.isLinux
-            ? 'Microphone permission denied. Check your system audio settings.'
-            : 'Microphone permission denied.\n'
-                  'Go to System Settings → Privacy & Security → Microphone and enable the app.',
-      );
-      return;
-    }
-
-    if (state.inputDevices.isEmpty) {
-      final devices = await _recorder.listInputDevices();
-      state = state.copyWith(inputDevices: devices);
-    }
-
-    final dir = await getTemporaryDirectory();
-    final path =
-        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
-
-    await _recorder.start(
-      RecordConfig(
-        encoder: AudioEncoder.wav,
-        sampleRate: 16000,
-        numChannels: 1,
-        device: state.selectedDevice,
-      ),
-      path: path,
+  Future<void> startRecording() async {
+    if (hasActiveOperation) return;
+    final generation = ++_generation;
+    _pendingUploadId = null;
+    final device = state.selectedDevice;
+    final system = state.captureSystemAudio;
+    state = state.copyWith(
+      status: RecordStatus.starting,
+      clearError: true,
+      clearUpload: true,
     );
-
-    state = state.copyWith(status: RecordStatus.recording);
-  }
-
-  Future<void> _startMicAndSystem() async {
-    final micGranted = await _recorder.hasPermission();
-    if (!micGranted) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage:
-            'Microphone permission denied.\n'
-            'Go to System Settings → Privacy & Security → Microphone and enable the app.',
-      );
-      return;
-    }
-
-    final systemGranted = await _sysAudio.requestPermission();
-    if (!systemGranted) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage:
-            'Screen & System Audio Recording permission denied.\n'
-            'Go to System Settings → Privacy & Security → Screen & System Audio Recording.',
-      );
-      return;
-    }
-
-    if (state.inputDevices.isEmpty) {
-      final devices = await _recorder.listInputDevices();
-      state = state.copyWith(inputDevices: devices);
-    }
-
-    final dir = await getTemporaryDirectory();
-    final micPath =
-        '${dir.path}/microphone_${DateTime.now().millisecondsSinceEpoch}.wav';
-
     try {
-      _sysAudioPath = await _sysAudio.startRecording(mode: 'system');
-      _micAudioPath = micPath;
-      await _recorder.start(
-        RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 16000,
-          numChannels: 1,
-          device: state.selectedDevice,
+      final options = _options(
+        RecordingUploadSource(
+          microphoneDeviceId: device?.id,
+          captureSystemAudio: system,
         ),
-        path: micPath,
       );
+      final session = await _openSession();
+      if (!_currentSession(generation, session)) return;
+      _session = session;
+      await _releaseCapture();
+      if (!_currentSession(generation, session)) return;
+      final capture = _captureFactory(system);
+      _capture = capture;
+      await capture.start(device: device);
+      if (!_currentSession(generation, session)) return;
+      _recordingOptions = options;
       state = state.copyWith(status: RecordStatus.recording);
-    } on Exception catch (e) {
-      try {
-        await _sysAudio.stopRecording();
-      } catch (_) {}
-      _sysAudioPath = null;
-      _micAudioPath = null;
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Failed to start combined audio capture: $e',
-      );
+    } on AppException catch (error) {
+      if (!_current(generation)) return;
+      await _cleanupCapture();
+      _fail(generation, error);
     }
   }
 
-  Future<void> _startMicAndSystemLinux() async {
-    final micGranted = await _recorder.hasPermission();
-    if (!micGranted) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Microphone permission denied.',
-      );
-      return;
+  Future<void> togglePause() {
+    final capture = _capture;
+    if (_pauseTransition != null ||
+        !state.isActive ||
+        capture == null ||
+        !capture.supportsPause) {
+      return Future.value();
     }
+    return _pauseTransition = _togglePause(capture);
+  }
 
-    final dir = await getTemporaryDirectory();
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final micPath = '${dir.path}/microphone_$ts.wav';
-    final sysPath = '${dir.path}/system_$ts.wav';
-
+  Future<void> _togglePause(AudioCapture capture) async {
+    final generation = _generation;
     try {
-      final monitorSource = await _getDefaultMonitor();
-
-      _parecProcess = await Process.start('parec', [
-        '--device=$monitorSource',
-        '--format=s16le',
-        '--rate=16000',
-        '--channels=1',
-        '--file-format=wav',
-        sysPath,
-      ]);
-      _sysAudioPath = sysPath;
-      _micAudioPath = micPath;
-
-      await _recorder.start(
-        RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 16000,
-          numChannels: 1,
-          device: state.selectedDevice,
-        ),
-        path: micPath,
-      );
-      state = state.copyWith(status: RecordStatus.recording);
-    } on Exception catch (e) {
-      _parecProcess?.kill();
-      _parecProcess = null;
-      _sysAudioPath = null;
-      _micAudioPath = null;
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Failed to start system audio capture: $e',
-      );
-    }
-  }
-
-  Future<void> _stopAndUpload() async {
-    String? path;
-
-    if (state.captureSystemAudio && !Platform.isLinux) {
-      final systemPath = _sysAudioPath;
-      final micFallbackPath = _micAudioPath;
-      Object? systemStopError;
-
-      try {
-        await _sysAudio.stopRecording();
-      } catch (e) {
-        systemStopError = e;
-      } finally {
-        _sysAudioPath = null;
-      }
-
-      final stoppedMicPath = await _recorder.stop();
-      final micPath = stoppedMicPath ?? micFallbackPath;
-      _micAudioPath = null;
-
-      final hasSystem = systemPath != null && File(systemPath).existsSync();
-      final hasMic = micPath != null && File(micPath).existsSync();
-
-      if (hasSystem && hasMic) {
-        try {
-          path = await _sysAudio.mixWithMicrophone(
-            systemPath: systemPath,
-            microphonePath: micPath,
-          );
-        } on Exception catch (e) {
-          state = state.copyWith(
-            status: RecordStatus.error,
-            errorMessage: 'Failed to mix audio: $e',
-          );
-          return;
-        }
-      } else if (hasMic) {
-        path = micPath;
-      } else if (hasSystem) {
-        path = systemPath;
+      final resuming = state.status == RecordStatus.paused;
+      if (resuming) {
+        await capture.resume();
       } else {
+        await capture.pause();
+      }
+      if (_current(generation)) {
         state = state.copyWith(
-          status: RecordStatus.error,
-          errorMessage: systemStopError is PlatformException
-              ? systemStopError.message ?? 'No audio was captured.'
-              : 'No audio was captured.',
+          status: resuming ? RecordStatus.recording : RecordStatus.paused,
         );
+      }
+    } on AppException catch (error) {
+      if (!_current(generation)) return;
+      await _cleanupCapture();
+      _fail(generation, error);
+    } finally {
+      if (_current(generation)) _pauseTransition = null;
+    }
+  }
+
+  Future<void> finishRecording({required bool confirmed}) async {
+    final capture = _capture;
+    final options = _recordingOptions;
+    final session = _session;
+    if (!confirmed ||
+        !state.isActive ||
+        capture == null ||
+        options == null ||
+        session == null) {
+      return;
+    }
+    final generation = _generation;
+    final pause = _pauseTransition;
+    if (pause != null) {
+      await pause;
+      if (!_current(generation) ||
+          !identical(_recordingOptions, options) ||
+          !state.isActive) {
         return;
       }
-    } else if (state.captureSystemAudio && Platform.isLinux) {
-      // Stop parec
-      _parecProcess?.kill();
-      _parecProcess = null;
-      final sysPath = _sysAudioPath;
-      _sysAudioPath = null;
-
-      final stoppedMicPath = await _recorder.stop();
-      final micPath = stoppedMicPath ?? _micAudioPath;
-      _micAudioPath = null;
-
-      final hasSystem = sysPath != null && File(sysPath).existsSync();
-      final hasMic = micPath != null && File(micPath).existsSync();
-
-      if (hasSystem && hasMic) {
-        // Mix with ffmpeg
-        final dir = await getTemporaryDirectory();
-        final mixedPath =
-            '${dir.path}/mixed_${DateTime.now().millisecondsSinceEpoch}.wav';
-        final result = await Process.run('ffmpeg', [
-          '-i',
-          micPath,
-          '-i',
-          sysPath,
-          '-filter_complex',
-          'amix=inputs=2:duration=first',
-          '-ar',
-          '16000',
-          '-ac',
-          '1',
-          mixedPath,
-        ]);
-        if (result.exitCode == 0) {
-          path = mixedPath;
-        } else {
-          path = micPath; // fallback to mic only
-        }
-      } else if (hasMic) {
-        path = micPath;
-      } else if (hasSystem) {
-        path = sysPath;
-      } else {
-        state = state.copyWith(
-          status: RecordStatus.error,
-          errorMessage: 'No audio was captured.',
-        );
-        return;
+    }
+    _recordingOptions = null;
+    state = state.copyWith(status: RecordStatus.preparing, clearError: true);
+    try {
+      if (!_currentSession(generation, session)) return;
+      final file = await capture.finish(confirmed: true);
+      if (!_current(generation)) return;
+      await _releaseCapture();
+      if (!_currentSession(generation, session)) return;
+      if (file == null) {
+        throw const ValidationException('Не удалось завершить запись WAV.');
       }
-    } else {
-      path = await _recorder.stop();
+      await _prepareAndSend(file, options, session, generation, appOwned: true);
+    } on AppException catch (error) {
+      if (!_current(generation)) return;
+      await _cleanupCapture();
+      _fail(generation, error);
     }
-
-    if (path == null) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'Recording failed: no output file.',
-      );
-      return;
-    }
-
-    final file = File(path);
-    if (!file.existsSync()) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: 'No audio was captured.',
-      );
-      return;
-    }
-
-    await uploadFile(file);
   }
 
-  Future<void> uploadFile(File file) async {
-    final workspaceId = state.selectedWorkspaceId;
-    if (workspaceId == null || workspaceId.isEmpty) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage:
-            'No workspace selected. Please select or create a workspace first.',
+  Future<void> uploadFile(
+    File file, {
+    UploadLanguage? language,
+    bool? mixed,
+  }) async {
+    if (hasActiveOperation) return;
+    final generation = ++_generation;
+    _pendingUploadId = null;
+    state = state.copyWith(
+      status: RecordStatus.preparing,
+      clearError: true,
+      clearUpload: true,
+    );
+    try {
+      final options = _options(
+        const ImportedWavUploadSource(),
+        language: language,
+        mixed: mixed,
       );
-      return;
+      final session = await _openSession();
+      if (!_currentSession(generation, session)) return;
+      _session = session;
+      await _prepareAndSend(
+        file,
+        options,
+        session,
+        generation,
+        appOwned: false,
+      );
+    } on AppException catch (error) {
+      _fail(generation, error);
     }
+  }
 
+  Future<void> _prepareAndSend(
+    File file,
+    UploadOptions options,
+    BatchSession session,
+    int generation, {
+    required bool appOwned,
+  }) async {
+    // prepare validates the exact copied WAV and commits the receipt before POST.
+    final pending = await session.uploads.prepare(
+      source: file,
+      options: options,
+    );
+    if (appOwned) {
+      try {
+        await file.delete();
+      } on FileSystemException {
+        // The durable copy remains authoritative. No user-owned file is removed.
+      }
+    }
+    if (!_currentSession(generation, session)) return;
+    _pendingUploadId = pending.localId;
+    await _send(session, pending.localId, generation);
+  }
+
+  Future<void> _send(BatchSession session, String id, int generation) async {
     state = state.copyWith(
       status: RecordStatus.uploading,
-      uploadProgress: 0,
-      errorMessage: null,
+      clearError: true,
+      clearUpload: true,
     );
+    final entry = await session.submit(
+      id,
+      onSendProgress: (sent, total) {
+        if (_current(generation) && session.isCurrent && total > 0) {
+          state = state.copyWith(
+            uploadProgress: (sent / total).clamp(0.0, 1.0),
+          );
+        }
+      },
+    );
+    if (!_currentSession(generation, session)) return;
+    _pendingUploadId = null;
+    state = state.copyWith(
+      status: RecordStatus.accepted,
+      accepted: entry.accepted,
+    );
+  }
+
+  Future<void> retryUpload() async {
+    final session = _session;
+    final id = _pendingUploadId;
+    if (hasActiveOperation ||
+        !state.canRetryUpload ||
+        id == null ||
+        session == null ||
+        !session.isCurrent) {
+      return;
+    }
+    final generation = ++_generation;
     try {
-      final audioId = await _api.uploadAudio(
-        workspaceId: workspaceId,
-        audioFile: file,
-        onProgress: (sent, total) {
-          if (total > 0) state = state.copyWith(uploadProgress: sent / total);
-        },
-      );
-      state = state.copyWith(
-        status: RecordStatus.done,
-        uploadedAudioId: audioId,
-        uploadProgress: 1,
-      );
-    } on AppException catch (e) {
-      state = state.copyWith(
-        status: RecordStatus.error,
-        errorMessage: e.message,
-      );
+      await _send(session, id, generation);
+    } on AppException catch (error) {
+      _fail(generation, error);
     }
   }
 
-  void reset() => state = RecordState(
-    selectedWorkspaceId: state.selectedWorkspaceId,
-    selectedWorkspaceName: state.selectedWorkspaceName,
-    inputDevices: state.inputDevices,
-    selectedDevice: state.selectedDevice,
-    captureSystemAudio: state.captureSystemAudio,
-  );
+  void _fail(int generation, AppException error) {
+    if (!_current(generation)) return;
+    _recordingOptions = null;
+    state = state.copyWith(
+      status: RecordStatus.error,
+      errorMessage: error.message,
+      canRetryUpload:
+          _pendingUploadId != null &&
+          error is ApiFailure &&
+          error.actions.contains(ApiRecoveryAction.replaySameUpload),
+    );
+  }
+
+  void reset() {
+    if (hasActiveOperation) {
+      state = state.copyWith(clearError: true);
+      return;
+    }
+    _pendingUploadId = null;
+    state = state.copyWith(
+      status: RecordStatus.idle,
+      clearError: true,
+      clearUpload: true,
+    );
+  }
+
+  Future<void> _releaseCapture() {
+    final capture = _capture;
+    if (capture == null) return Future.value();
+    return _releasing ??= Future<void>.sync(capture.dispose)
+        .then((_) {
+          if (identical(_capture, capture)) _capture = null;
+        })
+        .whenComplete(() => _releasing = null);
+  }
+
+  Future<void> _cleanupCapture() async {
+    try {
+      await _releaseCapture();
+    } on AppException {
+      // Keep a failed handle for another explicit cleanup attempt before Start.
+    }
+  }
+
+  void _invalidateSession() {
+    _generation++;
+    _session = null;
+    _pendingUploadId = null;
+    _recordingOptions = null;
+    _pauseTransition = null;
+    state = RecordState(inputDevices: state.inputDevices);
+    unawaited(_cleanupCapture());
+  }
 
   @override
   void dispose() {
-    _recorder.dispose();
+    _generation++;
+    unawaited(_cleanupCapture());
     super.dispose();
   }
 }
 
-Future<String> _getDefaultMonitor() async {
-  final info = await Process.run('pactl', ['info']);
-  final line = (info.stdout as String)
-      .split('\n')
-      .firstWhere((l) => l.contains('Default Sink:'), orElse: () => '');
-  if (line.isNotEmpty) {
-    final sink = line.split(':').last.trim();
-    return '$sink.monitor';
-  }
-  final sources = await Process.run('pactl', ['list', 'short', 'sources']);
-  final monitorLine = (sources.stdout as String)
-      .split('\n')
-      .firstWhere((l) => l.contains('.monitor'), orElse: () => '');
-  return monitorLine.isNotEmpty
-      ? monitorLine.split('\t')[1]
-      : 'auto_null.monitor';
-}
-
 final recordNotifierProvider =
     StateNotifierProvider<RecordNotifier, RecordState>((ref) {
-      return RecordNotifier(ref.read(audioIngestApiProvider));
+      final notifier = RecordNotifier(
+        captureFactory: ref.read(recordCaptureFactoryProvider),
+        session: () => ref.read(batchSessionProvider.future),
+      );
+      ref.listen(
+        authNotifierProvider,
+        (_, __) => notifier._invalidateSession(),
+      );
+      ref.listen(
+        sessionNotifierProvider,
+        (_, __) => notifier._invalidateSession(),
+      );
+      return notifier;
     });

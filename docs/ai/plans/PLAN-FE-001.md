@@ -23,8 +23,9 @@ backend_commit: f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6
 кода/dependencies/backend. После этого пользователь прямо поручил сразу продолжить
 все оставшиеся **current** задачи по DAG, с checks и независимым review перед
 переходом. Принятые .01/.02 не переоткрываются, готовый код не переделывается.
-Новых accepted автоматически нет; commit/push/merge этим последним поручением
-запрещены, прежнее разрешение публикации не применяется. Release не разрешён.
+2026-11-07 пользователь поручил продолжить текущий этап и после проверок и
+независимого review отправлять каждую завершённую задачу отдельным коммитом в
+`origin/main`. Публикацию выполняет координатор. Приёмка остаётся за владельцем.
 Параллельные агенты разрешены при раздельных scopes и одном coordinator.
 
 ## Источники и actual state
@@ -256,7 +257,7 @@ TASK-FE-001.51 <- TASK-FE-001.31, TASK-FE-001.50
 | [TASK-FE-001.20](../tasks/TASK-FE-001.20.md) | Сохранить upload identity и job references для восстановления | B | P1 | review | 04, 19 | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.21](../tasks/TASK-FE-001.21.md) | Добавить job status и anonymous session V2 контракты | A | P1 | review | 05, 06, 07 | /root/results_contracts | Точные пути в карточке |
 | [TASK-FE-001.22](../tasks/TASK-FE-001.22.md) | Добавить canonical transcript DTO и 200/202 result API | A | P1 | review | 05, 06, 07, 21 | /root/results_contracts | Точные пути в карточке |
-| [TASK-FE-001.23](../tasks/TASK-FE-001.23.md) | Перевести ordinary record/upload UX на V2 | B | P1 | draft | 11, 13, 14, 15, 16, 17, 18, 19, 20, 25 | unassigned | Точные пути в карточке |
+| [TASK-FE-001.23](../tasks/TASK-FE-001.23.md) | Перевести ordinary record/upload UX на V2 | B | P1 | review | 11, 13, 14, 15, 16, 17, 18, 19, 20, 25 | /root/ordinary_v2 | Точные пути в карточке |
 | [TASK-FE-001.24](../tasks/TASK-FE-001.24.md) | Заменить anonymous confirm на owner-only V2 batch UX | B | P1 | draft | 23 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.25](../tasks/TASK-FE-001.25.md) | Организовать lifecycle polling и восстановление accepted jobs | B | P1 | review | 09, 14, 20, 21, 22 | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.26](../tasks/TASK-FE-001.26.md) | Закрепить V2 results list и pagination data | A | P1 | review | 05, 06, 07 | primary-agent | Точные пути в карточке |
