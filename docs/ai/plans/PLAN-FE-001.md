@@ -201,7 +201,7 @@ TASK-FE-001.23 <- TASK-FE-001.11, TASK-FE-001.13, TASK-FE-001.14, TASK-FE-001.15
 TASK-FE-001.24 <- TASK-FE-001.23
 TASK-FE-001.25 <- TASK-FE-001.09, TASK-FE-001.14, TASK-FE-001.20, TASK-FE-001.21, TASK-FE-001.22
 TASK-FE-001.26 <- TASK-FE-001.05, TASK-FE-001.06, TASK-FE-001.07
-TASK-FE-001.27 <- TASK-FE-001.25, TASK-FE-001.26
+TASK-FE-001.27 <- TASK-FE-001.23, TASK-FE-001.25, TASK-FE-001.26
 TASK-FE-001.28 <- TASK-FE-001.09, TASK-FE-001.22, TASK-FE-001.24, TASK-FE-001.25, TASK-FE-001.27, TASK-FE-001.30, TASK-FE-001.49
 TASK-FE-001.29 <- TASK-FE-001.22, TASK-FE-001.28
 TASK-FE-001.30 <- TASK-FE-001.05, TASK-FE-001.06, TASK-FE-001.07, TASK-FE-001.18
@@ -261,7 +261,7 @@ TASK-FE-001.51 <- TASK-FE-001.31, TASK-FE-001.50
 | [TASK-FE-001.24](../tasks/TASK-FE-001.24.md) | Заменить anonymous confirm на owner-only V2 batch UX | B | P1 | draft | 23 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.25](../tasks/TASK-FE-001.25.md) | Организовать lifecycle polling и восстановление accepted jobs | B | P1 | review | 09, 14, 20, 21, 22 | primary-agent | Точные пути в карточке |
 | [TASK-FE-001.26](../tasks/TASK-FE-001.26.md) | Закрепить V2 results list и pagination data | A | P1 | review | 05, 06, 07 | primary-agent | Точные пути в карточке |
-| [TASK-FE-001.27](../tasks/TASK-FE-001.27.md) | Адаптировать библиотеку результатов и фильтры | B | P1 | draft | 25, 26 | unassigned | Точные пути в карточке |
+| [TASK-FE-001.27](../tasks/TASK-FE-001.27.md) | Адаптировать библиотеку результатов и фильтры | B | P1 | review | 23, 25, 26 | /root/results_library | Точные пути в карточке |
 | [TASK-FE-001.28](../tasks/TASK-FE-001.28.md) | Добавить result detail route с независимыми состояниями | B | P1 | draft | 09, 22, 24, 25, 27, 30, 49 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.29](../tasks/TASK-FE-001.29.md) | Показать canonical transcript с исходными Speaker ID/labels | B | P1 | draft | 22, 28 | unassigned | Точные пути в карточке |
 | [TASK-FE-001.30](../tasks/TASK-FE-001.30.md) | Добавить авторизованный document/original download client | A | P1 | review | 05, 06, 07, 18 | primary-agent | Точные пути в карточке |

@@ -1,515 +1,384 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/error/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/providers/providers.dart';
+import '../../record/data/dto/pending_upload.dart';
 import '../data/dto/result_dto.dart';
+import 'processing_notifier.dart';
 import 'results_notifier.dart';
 
-/// React-аналог: ResultsPage.tsx
-/// Список результатов обработки аудио (транскрипт + summary).
-/// GET /meetings/results — STUB (см. MISSING_ENDPOINTS.md п.2).
-/// DELETE /meetings/results/:id — STUB (см. MISSING_ENDPOINTS.md п.3).
-/// Скачивание PDF (summary / transcript) — реализовано.
+typedef OpenResult = void Function(String audioId, String jobId);
+
 class ResultsScreen extends ConsumerWidget {
-  const ResultsScreen({super.key});
+  const ResultsScreen({super.key, this.onOpen});
+
+  /// The result detail route supplies this when it is registered.
+  final OpenResult? onOpen;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(resultsNotifierProvider);
-    final notifier = ref.read(resultsNotifierProvider.notifier);
+  Widget build(BuildContext context, WidgetRef ref) => ref
+      .watch(batchSessionProvider)
+      .when(
+        skipLoadingOnRefresh: false,
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _Message(
+          text: _safeMessage(error, 'Не удалось открыть результаты.'),
+          onRetry: () => ref.invalidate(batchSessionProvider),
+        ),
+        data: (session) => session.isCurrent
+            ? _Library(key: ValueKey(session), session: session, onOpen: onOpen)
+            : const Center(child: CircularProgressIndicator()),
+      );
+}
+
+class _Library extends ConsumerStatefulWidget {
+  const _Library({super.key, required this.session, this.onOpen});
+
+  final BatchSession session;
+  final OpenResult? onOpen;
+
+  @override
+  ConsumerState<_Library> createState() => _LibraryState();
+}
+
+class _LibraryState extends ConsumerState<_Library> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.session.isCurrent) {
+        ref
+            .read(resultsNotifierProvider(widget.session).notifier)
+            .openLibrary();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
+    final onOpen = widget.onOpen;
+    final provider = resultsNotifierProvider(session);
+    final state = ref.watch(provider);
+    final notifier = ref.read(provider.notifier);
+    final jobs = ref.watch(
+      processingNotifierProvider(session.processingSession),
+    );
+    final page = state.page.asData?.value;
+    final dates = state.dates;
+    final rows = page?.data ?? const <ResultDto>[];
+    final uploads = state.uploads.asData?.value;
+    final listedAudio = rows.map((row) => row.audioId).toSet();
+    final local =
+        uploads?.entries.where((entry) {
+          final receipt = entry.accepted;
+          if (receipt == null) return true;
+          final key = (audioId: receipt.audioId, jobId: receipt.jobId);
+          // Recovery receipts supplement the first unfiltered page. They are not
+          // counted as server rows or proof that other pages lack the result.
+          return state.pageNumber == 1 &&
+              state.dates == null &&
+              !listedAudio.contains(receipt.audioId) &&
+              !session.jobs.isDeleted(key);
+        }).toList() ??
+        const <PendingUpload>[];
 
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'Results',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
               const Spacer(),
               IconButton(
-                onPressed: state.status == ResultsStatus.loading
-                    ? null
-                    : notifier.load,
-                icon: state.status == ResultsStatus.loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accent,
-                        ),
-                      )
-                    : const Icon(Icons.refresh_rounded,
-                        color: AppColors.textSecondary),
-                tooltip: 'Refresh',
+                tooltip: 'Обновить результаты',
+                onPressed: state.page.isLoading ? null : notifier.refresh,
+                icon: const Icon(Icons.refresh_rounded),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Meeting transcripts and summaries',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.date_range_outlined),
+                label: Text(
+                  dates == null
+                      ? 'Выбрать период'
+                      : '${_date(dates.start)} — ${_date(dates.end)}',
+                ),
+                onPressed: () => _chooseDates(context, notifier, state.dates),
+              ),
+              if (state.dates != null)
+                TextButton(
+                  onPressed: () => notifier.setDates(null),
+                  child: const Text('Сбросить период'),
+                ),
+              TextButton.icon(
+                onPressed: () => context.go('/record'),
+                icon: const Icon(Icons.mic_none_rounded),
+                label: const Text('Новая запись'),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-
-          if (state.errorMessage != null)
-            _InfoBanner(
-              message: state.errorMessage!,
-              isStub: state.isStubError,
-              onDismiss: notifier.clearError,
+          if (state.actionMessage case final message?)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                message,
+                style: TextStyle(
+                  color: state.actionFailed ? AppColors.error : null,
+                ),
+              ),
+              trailing: IconButton(
+                tooltip: 'Закрыть сообщение',
+                onPressed: notifier.clearAction,
+                icon: const Icon(Icons.close),
+              ),
             ),
-
+          const SizedBox(height: 12),
           Expanded(
-            child: switch (state.status) {
-              ResultsStatus.loading => const Center(
-                  child: CircularProgressIndicator(color: AppColors.accent),
-                ),
-              ResultsStatus.error when state.isStubError =>
-                _StubPlaceholder(onRetry: notifier.load),
-              ResultsStatus.error => _ErrorState(
-                  message: state.errorMessage ?? '',
-                  onRetry: notifier.load,
-                ),
-              ResultsStatus.loaded when state.results.isEmpty =>
-                const _EmptyState(),
-              _ => _ResultsList(
-                  results: state.results,
-                  downloadingPdf: state.downloadingPdf,
-                  onDownloadSummary: (audioId) =>
-                      notifier.downloadSummary(audioId, audioId),
-                  onDownloadTranscript: (audioId) =>
-                      notifier.downloadTranscript(audioId, audioId),
-                  onDownloadAudio: (audioId) =>
-                      notifier.downloadAudio(audioId),
-                  onDelete: (audioId) async {
-                    final ok = await notifier.delete(audioId);
-                    if (!ok && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Delete is not yet available'),
-                          backgroundColor: AppColors.surfaceElevated,
-                        ),
-                      );
-                    }
-                  },
-                ),
-            },
+            child: ListView(
+              children: [
+                if (state.uploads.hasError)
+                  _Message(
+                    text: _safeMessage(
+                      state.uploads.error,
+                      'Не удалось прочитать сохранённые отправки.',
+                    ),
+                    onRetry: notifier.refresh,
+                  ),
+                if ((uploads?.damagedEntries ?? 0) > 0)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Некоторые сохранённые отправки повреждены и недоступны для восстановления.',
+                    ),
+                  ),
+                if (local.isNotEmpty) ...[
+                  const Text('Сохранённые отправки с этого устройства'),
+                  const SizedBox(height: 8),
+                  for (final entry in local)
+                    _UploadCard(
+                      entry: entry,
+                      sending: state.sending.contains(entry.localId),
+                      blockedReason: state.blockedReplays[entry.localId],
+                      replay: () => notifier.replay(entry.localId),
+                      progress: entry.accepted == null
+                          ? null
+                          : jobs[(
+                              audioId: entry.accepted!.audioId,
+                              jobId: entry.accepted!.jobId,
+                            )],
+                      onOpen: onOpen,
+                    ),
+                  const SizedBox(height: 16),
+                ],
+                if (state.page.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (state.page.hasError)
+                  _Message(
+                    text: _safeMessage(
+                      state.page.error,
+                      'Не удалось загрузить результаты.',
+                    ),
+                    onRetry: notifier.refresh,
+                  )
+                else if (rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Text(
+                      state.dates == null
+                          ? 'Результатов пока нет.'
+                          : 'За выбранный период результатов нет.',
+                    ),
+                  )
+                else
+                  for (final row in rows)
+                    _ResultCard(
+                      result: row,
+                      progress:
+                          jobs[(audioId: row.audioId, jobId: row.resultId)],
+                      deleting: state.deleting.contains(row.audioId),
+                      onDelete: () => notifier.delete(row.audioId),
+                      onOpen: onOpen,
+                    ),
+              ],
+            ),
           ),
+          if (page != null && page.pagination.totalPages > 1)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Предыдущая страница',
+                  onPressed: state.pageNumber > 1
+                      ? () => notifier.goToPage(state.pageNumber - 1)
+                      : null,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text(
+                  'Страница ${state.pageNumber} из ${page.pagination.totalPages}',
+                ),
+                IconButton(
+                  tooltip: 'Следующая страница',
+                  onPressed: state.pageNumber < page.pagination.totalPages
+                      ? () => notifier.goToPage(state.pageNumber + 1)
+                      : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
+
+  Future<void> _chooseDates(
+    BuildContext context,
+    ResultsNotifier notifier,
+    ResultsDateFilter? dates,
+  ) async {
+    final selected = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(1970),
+      lastDate: DateTime.now(),
+      initialDateRange: dates == null
+          ? null
+          : DateTimeRange(start: dates.start, end: dates.end),
+    );
+    if (selected != null && context.mounted) {
+      await notifier.setDates((start: selected.start, end: selected.end));
+    }
+  }
 }
 
-// Список результатов
-
-class _ResultsList extends StatelessWidget {
-  final List<ResultDto> results;
-  final Map<String, bool> downloadingPdf;
-  final void Function(String audioId) onDownloadSummary;
-  final void Function(String audioId) onDownloadTranscript;
-  final void Function(String audioId) onDownloadAudio;
-  final Future<void> Function(String audioId) onDelete;
-
-  const _ResultsList({
-    required this.results,
-    required this.downloadingPdf,
-    required this.onDownloadSummary,
-    required this.onDownloadTranscript,
-    required this.onDownloadAudio,
-    required this.onDelete,
+class _UploadCard extends StatelessWidget {
+  const _UploadCard({
+    required this.entry,
+    required this.sending,
+    required this.replay,
+    this.blockedReason,
+    this.progress,
+    this.onOpen,
   });
+
+  final PendingUpload entry;
+  final bool sending;
+  final VoidCallback replay;
+  final String? blockedReason;
+  final JobProgress? progress;
+  final OpenResult? onOpen;
+
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      itemCount: results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => _ResultCard(
-        result: results[i],
-        downloadingSummary: downloadingPdf['${results[i].audioId}:summary'] ?? false,
-        downloadingTranscript: downloadingPdf['${results[i].audioId}:transcript'] ?? false,
-        downloadingAudio: downloadingPdf['${results[i].audioId}:audio'] ?? false,
-        onDownloadSummary: () => onDownloadSummary(results[i].audioId),
-        onDownloadTranscript: () => onDownloadTranscript(results[i].audioId),
-        onDownloadAudio: () => onDownloadAudio(results[i].audioId),
-        onDelete: () => onDelete(results[i].audioId),
+    final receipt = entry.accepted;
+    final label = switch (entry.state) {
+      PendingUploadState.pending => 'Отправка не подтверждена',
+      PendingUploadState.conflict => 'Конфликт отправки. Повтор недоступен.',
+      PendingUploadState.accepted =>
+        'Принято сервером · ${_phaseLabel(progress) ?? 'Ожидает обработки'}',
+    };
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          receipt == null
+              ? Icons.cloud_upload_outlined
+              : Icons.cloud_done_outlined,
+        ),
+        title: Text(label),
+        subtitle: Text(
+          blockedReason ??
+              '${entry.options.anonymous ? 'Без рабочего пространства' : 'Рабочее пространство'} · ${_date(entry.createdAt.toLocal())}',
+        ),
+        trailing: switch (entry.state) {
+          PendingUploadState.pending when blockedReason == null => TextButton(
+            onPressed: sending ? null : replay,
+            child: Text(sending ? 'Отправляем…' : 'Повторить отправку'),
+          ),
+          PendingUploadState.accepted
+              when receipt != null &&
+                  onOpen != null &&
+                  !_accessLost(progress) =>
+            TextButton(
+              onPressed: () => onOpen!(receipt.audioId, receipt.jobId),
+              child: const Text('Открыть'),
+            ),
+          _ => null,
+        },
       ),
     );
   }
 }
 
 class _ResultCard extends StatelessWidget {
-  final ResultDto result;
-  final bool downloadingSummary;
-  final bool downloadingTranscript;
-  final bool downloadingAudio;
-  final VoidCallback onDownloadSummary;
-  final VoidCallback onDownloadTranscript;
-  final VoidCallback onDownloadAudio;
-  final Future<void> Function() onDelete;
-
   const _ResultCard({
     required this.result,
-    required this.downloadingSummary,
-    required this.downloadingTranscript,
-    required this.downloadingAudio,
-    required this.onDownloadSummary,
-    required this.onDownloadTranscript,
-    required this.onDownloadAudio,
+    required this.deleting,
     required this.onDelete,
+    this.progress,
+    this.onOpen,
   });
+
+  final ResultDto result;
+  final bool deleting;
+  final VoidCallback onDelete;
+  final JobProgress? progress;
+  final OpenResult? onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final dateStr = result.createdAt != null
-        ? _formatDate(result.createdAt!)
-        : 'Date unknown';
-    final workspaceLabel = result.workspaceName?.isNotEmpty == true
+    final workspace = result.workspaceId.isEmpty
+        ? 'Без рабочего пространства'
+        : (result.workspaceName?.isNotEmpty ?? false)
         ? result.workspaceName!
-        : 'Workspace ${result.workspaceId.substring(0, 12)}…';
-    final isDone = result.status == 'done';
-    final isFailed = result.status == 'failed';
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceElevated),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.accentSubtle,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.description_rounded,
-                    color: AppColors.accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Audio ID: ${result.audioId.substring(0, 12)}…',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      dateStr,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Status chip
-              _StatusChip(status: result.status),
-              // Меню
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz_rounded,
-                    color: AppColors.textSecondary, size: 18),
-                color: AppColors.surfaceElevated,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Text('Delete',
-                        style: TextStyle(color: AppColors.error)),
-                  ),
-                ],
-                onSelected: (v) {
-                  if (v == 'delete') onDelete();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          _TagRow(label: 'Workspace', value: workspaceLabel),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              _PdfButton(
-                label: 'Summary PDF',
-                icon: Icons.summarize_rounded,
-                isLoading: downloadingSummary,
-                onTap: isDone ? onDownloadSummary : null,
-              ),
-              const SizedBox(width: 10),
-              _PdfButton(
-                label: 'Transcript PDF',
-                icon: Icons.article_rounded,
-                isLoading: downloadingTranscript,
-                onTap: isDone ? onDownloadTranscript : null,
-              ),
-              const SizedBox(width: 10),
-              _PdfButton(
-                label: 'Audio',
-                icon: Icons.audio_file_rounded,
-                isLoading: downloadingAudio,
-                onTap: (!isDone && !isFailed) ? null : onDownloadAudio,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    String pad(int n) => n.toString().padLeft(2, '0');
-    return '${dt.year}-${pad(dt.month)}-${pad(dt.day)} '
-        '${pad(dt.hour)}:${pad(dt.minute)}';
-  }
-}
-
-class _TagRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _TagRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          '$label: ',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-          ),
+        : 'Рабочее пространство ${_shortId(result.workspaceId)}';
+    final status =
+        _phaseLabel(progress) ??
+        switch (result.status) {
+          'pending' => 'Обрабатывается',
+          'done' => 'Транскрипт сформирован',
+          'failed' => 'Обработка не завершилась',
+          _ => 'Неизвестное состояние',
+        };
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.description_outlined),
+        title: Text('Запись ${_shortId(result.audioId)}'),
+        subtitle: Text(
+          '$workspace · $status${result.createdAt == null ? '' : ' · ${_date(result.createdAt!.toLocal())}'}',
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PdfButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isLoading;
-  final VoidCallback? onTap;
-
-  const _PdfButton({
-    required this.label,
-    required this.icon,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onTap == null && !isLoading;
-    return GestureDetector(
-      onTap: (isLoading || disabled) ? null : onTap,
-      child: Opacity(
-        opacity: disabled ? 0.4 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isLoading)
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.accent,
-                  ),
-                )
-              else
-                Icon(icon, color: AppColors.accent, size: 14),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final String status;
-  const _StatusChip({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final (color, label, showSpinner) = switch (status) {
-      'done' => (AppColors.success, 'Done', false),
-      'failed' => (AppColors.error, 'Failed', false),
-      _ => (AppColors.textSecondary, 'Processing', true),
-    };
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showSpinner)
-            SizedBox(
-              width: 10,
-              height: 10,
-              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
-            )
-          else
-            Icon(
-              status == 'done' ? Icons.check_circle_rounded : Icons.error_rounded,
-              size: 10,
-              color: color,
-            ),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
-
-// Вспомогательные виджеты
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Icon(Icons.description_outlined,
-                color: AppColors.textSecondary, size: 36),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'No results yet',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Upload and process audio files to see results here',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StubPlaceholder extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _StubPlaceholder({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 480),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.accentSubtle,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-        ),
-        child: Column(
+        trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.construction_rounded,
-                color: AppColors.accent, size: 40),
-            const SizedBox(height: 16),
-            const Text(
-              'Backend endpoint not implemented',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            if (onOpen != null && !deleting)
+              TextButton(
+                onPressed: () => onOpen!(result.audioId, result.resultId),
+                child: const Text('Открыть'),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'GET /meetings/results is missing from the backend.\n'
-              'See MISSING_ENDPOINTS.md for details.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Retry'),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.accent),
-                foregroundColor: AppColors.accent,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
+            PopupMenuButton<String>(
+              enabled: !deleting,
+              tooltip: 'Удалить результат',
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Удалить результат'),
+                ),
+              ],
+              onSelected: (_) => onDelete(),
             ),
           ],
         ),
@@ -518,85 +387,49 @@ class _StubPlaceholder extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  final String message;
+class _Message extends StatelessWidget {
+  const _Message({required this.text, required this.onRetry});
+  final String text;
   final VoidCallback onRetry;
 
-  const _ErrorState({required this.message, required this.onRetry});
-
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.error, size: 40),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(text),
+        TextButton(onPressed: onRetry, child: const Text('Повторить загрузку')),
+      ],
+    ),
+  );
 }
 
-class _InfoBanner extends StatelessWidget {
-  final String message;
-  final bool isStub;
-  final VoidCallback onDismiss;
+String _safeMessage(Object? error, String fallback) =>
+    error is AppException ? error.message : fallback;
 
-  const _InfoBanner({
-    required this.message,
-    required this.isStub,
-    required this.onDismiss,
-  });
+String _shortId(String id) => id.length > 12 ? '${id.substring(0, 12)}…' : id;
 
-  @override
-  Widget build(BuildContext context) {
-    final color = isStub ? AppColors.accent : AppColors.error;
-    final bg = isStub ? AppColors.accentSubtle : AppColors.errorSubtle;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isStub ? Icons.construction_rounded : Icons.error_outline_rounded,
-            color: color,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(message, style: TextStyle(color: color, fontSize: 13)),
-          ),
-          GestureDetector(
-            onTap: onDismiss,
-            child: Icon(Icons.close_rounded, color: color, size: 16),
-          ),
-        ],
-      ),
-    );
-  }
+bool _accessLost(JobProgress? progress) {
+  final error = progress?.error;
+  return error is NotFoundException ||
+      error is ApiFailure &&
+          (error.kind == ApiFailureKind.notFound ||
+              error.kind == ApiFailureKind.forbidden);
 }
+
+String _date(DateTime date) {
+  String pad(int value) => value.toString().padLeft(2, '0');
+  return '${pad(date.day)}.${pad(date.month)}.${date.year}';
+}
+
+String? _phaseLabel(JobProgress? progress) => switch (progress?.phase) {
+  ProcessingPhase.waiting => 'Обрабатывается',
+  ProcessingPhase.ready => 'Транскрипт готов',
+  ProcessingPhase.failed => 'Ошибка обработки',
+  ProcessingPhase.cancelled => 'Обработка отменена',
+  ProcessingPhase.expired => 'Сессия обработки истекла',
+  ProcessingPhase.unavailable => 'Результат недоступен',
+  ProcessingPhase.unsupported => 'Неизвестное состояние',
+  null => null,
+};

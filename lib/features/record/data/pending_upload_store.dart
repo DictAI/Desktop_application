@@ -72,6 +72,13 @@ final class PendingUploadStore {
     'Сохранённая отправка конфликтует с сервером. Повтор недоступен.',
   );
 
+  /// These local failures make this exact draft unsafe or impossible to send.
+  /// A concurrent submission is transient even though it is a validation error.
+  static bool isUnrecoverableReplayError(AppException error) =>
+      identical(error, _entryUnavailable) ||
+      identical(error, _sourceChanged) ||
+      identical(error, _conflict);
+
   Future<PendingUpload> prepare({
     required File source,
     required UploadOptions options,
