@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
 import '../../workspace/presentation/workspaces_screen.dart';
 import '../../workspace/data/dto/workspace_dto.dart';
+import 'record_exit_guard.dart';
 import 'record_notifier.dart';
 import 'upload_modal.dart';
 
@@ -18,8 +19,6 @@ class RecordScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
-  bool _confirmingStop = false;
-
   @override
   void initState() {
     super.initState();
@@ -96,12 +95,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               status: state.status,
               anonymous: state.anonymous,
               onTap: state.isActive
-                  ? () => _handleStop(notifier)
+                  ? () =>
+                        ref.read(recordExitGuardProvider).confirmFinish(context)
                   : canRecord
                   ? notifier.startRecording
                   : null,
-              onPause:
-                  (state.isActive && notifier.supportsPause && !_confirmingStop)
+              onPause: state.isActive && notifier.supportsPause
                   ? () => notifier.togglePause()
                   : null,
             ),
@@ -188,38 +187,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _handleStop(RecordNotifier notifier) async {
-    final identity = notifier.recordingIdentity;
-    if (_confirmingStop || identity == null) return;
-    setState(() => _confirmingStop = true);
-    try {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Завершить запись?'),
-          content: const Text('Готовый WAV будет отправлен на обработку.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Продолжить запись'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Завершить и отправить'),
-            ),
-          ],
-        ),
-      );
-      if (mounted &&
-          confirmed == true &&
-          identical(identity, notifier.recordingIdentity)) {
-        await notifier.finishRecording(confirmed: true);
-      }
-    } finally {
-      if (mounted) setState(() => _confirmingStop = false);
-    }
   }
 
   void _showUploadModal(BuildContext context) {

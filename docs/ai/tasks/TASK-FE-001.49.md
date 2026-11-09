@@ -2,8 +2,8 @@
 id: TASK-FE-001.49
 plan: PLAN-FE-001
 title: "Подтвердить Stop и защитить уход с активной записи"
-status: draft
-owner: unassigned
+status: review
+owner: primary-agent
 priority: P1
 readiness_category: B
 phase: "2"
@@ -61,40 +61,49 @@ FE prerequisites: [TASK-FE-001.24](TASK-FE-001.24.md), [TASK-FE-001.12](TASK-FE-
 
 ## Acceptance criteria
 
-- [ ] Stop открывает «Завершить запись?» с точными кнопками «Продолжить запись» и «Завершить и отправить». До ответа capture остаётся recording/paused; continue/Escape/закрытие не вызывают stop/upload.
-- [ ] Подтверждение выполняет один finalized WAV/preflight/journal/upload по .23/.24. Нет preview/предварительного прослушивания, double tap/два диалога не дают два stop/upload; invalid WAV не отправляется.
-- [ ] Перед Start выбраны режим/workspace, mic, system при необходимости и language/mixed; активные параметры не меняются. Guard не стирает переданный из workspace контекст.
-- [ ] Уход через sidebar/Back/внутренний route с active/paused записью показывает аналогичное предупреждение с этими двумя действиями. Continue отменяет переход; finish запускает общую отправку и accepted waiting flow, а не случайный discard/фоновую запись.
-- [ ] Pending uploads сохраняются .20 и восстанавливаются из Results. Navigation во время upload не заявляет server cancel; неизвестный исход не теряется. Обработку и поздние readiness callbacks текущего транскрипта подключают .28/.48.
-- [ ] Forced logout/401 следует безопасному cleanup, не блокируется обычным dialog; native OS window-close interception/новые permissions не входят без отдельного решения.
-- [ ] Записаны команды/cwd/среда/actual results; FAIL/SKIP/NOT RUN не выданы за PASS.
-- [ ] Независимый review выполнен другим агентом; findings и ограничения сохранены, accepted требует пользователя.
+- [x] Stop открывает «Завершить запись?» с точными кнопками «Продолжить запись» и «Завершить и отправить». До ответа capture остаётся recording/paused; continue/Escape/закрытие не вызывают stop/upload.
+- [x] Подтверждение выполняет один finalized WAV/preflight/journal/upload по .23/.24. Нет preview/предварительного прослушивания, double tap/два диалога не дают два stop/upload; invalid WAV не отправляется.
+- [x] Перед Start выбраны режим/workspace, mic, system при необходимости и language/mixed; активные параметры не меняются. Guard сохраняет переданный из workspace контекст.
+- [x] Уход через sidebar/Back/внутренний route с active/paused записью показывает то же предупреждение. Continue отменяет переход; finish запускает общую отправку и сохраняет Record для видимого прогресса и ошибок. Обработка после 202 подключается в .28.
+- [x] Pending uploads сохраняются .20 и восстанавливаются из Results. Навигация во время upload оставляет отправку активной; неизвестный исход сохраняется в журнале. Обработку и поздние readiness callbacks текущего транскрипта подключают .28/.48.
+- [x] Forced logout/401 выполняет cleanup и закрывает устаревший диалог. Перехват закрытия окна ОС и новые разрешения вне scope.
+- [x] Записаны команды, cwd, среда и результаты, включая ограничения.
+- [x] Независимый review выполнен другим агентом. Результат и ограничения записаны. Приёмка остаётся за владельцем.
 
 ## Implementation notes
 
-V2 seam дают .23/.24, финальный dialog/route policy только здесь. .28 зависит от .49, что упорядочивает record_screen/router; .48 позже дополняет shell/router. Не вызывать stop в dispose при обычной попытке навигации до подтверждения.
+Общий сценарий .23/.24 используется в обоих режимах. `GoRoute.onExit` для Record
+и кнопка Stop используют один диалог. Попытка ухода во время запуска удерживает
+Record, чтобы запись не началась в фоне. Подтверждение удерживает Record для
+прогресса и ошибок WAV; дальнейший переход во время отправки доступен. `.28`
+подключает экран обработки после 202, `.48` дополняет готовность в других разделах.
 
 Все scope paths относительны frontend; отсутствующие файлы обозначены planned_paths.
 Общий файл меняет один writer в порядке DAG. Не менять Flutter dependencies,
-backend, immutable snapshots или соседние задачи автоматически. Никаких
-commit/push/merge/release; чтение backend не даёт права его изменять.
+backend, snapshots или соседние задачи. Владелец разрешил отдельный commit и
+push проверенной .49 в main. Приёмка выполняется отдельно.
 
 ## Verification
 
-План будущих проверок, не evidence реализации. Cwd — корень frontend. SDK после
-.01; тесты изолируются через существующие Riverpod overrides/fakes. Для Dart
-изменений: формат только затронутых файлов, flutter analyze и targeted tests;
-baseline unrelated failures фиксируются отдельно.
+2026-11-09. Cwd `/Users/verliiar/Desktop_application`, macOS arm64, Flutter
+3.41.3 и Dart 3.11.1 из `.dart_tool/codex-tools/flutter`, `PUB_CACHE=/Users/verliiar/.pub-cache`.
+Widget tests используют настоящий GoRouter и контролируемые capture/HTTP fixtures.
 
-| Command / scenario | Cwd / environment | Expected | Actual | Status | Limitation |
-|---|---|---|---|---|---|
-| `flutter test test/features/record/record_confirmation_test.dart` | Frontend / router/capture/upload fakes для обоих режимов | Указанные acceptance criteria подтверждены | Не запускалось | NOT RUN | Точные подписи, cancel/Escape/paused, sidebar/back, double confirm, invalid WAV, один upload |
-| macOS/Linux record guard smoke | Frontend / hosts .36/.37; synthetic audio | Указанные acceptance criteria подтверждены | Не запускалось | NOT RUN | Случайная навигация не останавливает запись; не native window API implementation |
-| `flutter analyze`; формат изменённых Dart-файлов; полный diff и независимый review | Frontend / совместимый SDK | Нет новых ошибок/посторонних изменений | Не запускалось | NOT RUN | Сейчас только planning; не исправлять весь baseline вне scope |
+| Command / scenario | Expected | Actual / status / граница |
+|---|---|---|
+| `flutter test --no-pub --reporter expanded`, cwd `/tmp/dictai-task-publish-20261107/snapshot-49-candidate` | Полная регрессия на `5ca5fbb` с diff .49 | PASS, 552 теста. 8 новых покрывают оба режима, отмену/Escape/barrier, sidebar/Back/route, старт и паузу, повторное подтверждение, invalid WAV и logout/401 |
+| `flutter analyze --no-pub` и `dart format --output=none --set-exit-if-changed` для пяти изменённых Dart-файлов | Нет замечаний анализа и формата | PASS |
+| `git diff --check` и проверка разрешённого scope | Нет whitespace и посторонних файлов | PASS |
+| [REVIEW-FE-001.49-01](../reviews/REVIEW-FE-001.49-01.md) | Независимый review замороженных пяти Dart-файлов | PASS, 36 целевых тестов, открытых замечаний нет |
+| Реальный macOS/Linux capture и live gateway | Ручные сценарии .36/.37/.40 | NOT RUN, текущие проверки используют синтетический WAV и ответы API |
 
 ## Result
 
-Не реализовано. Создана только карточка планирования; функциональный код,
-API-клиенты, DTO, платформы и зависимости не менялись. Mock evidence не означает
-серверного сохранения, multi-device readiness или именованного server export.
-Implemented ≠ verified ≠ accepted; приёмки и разрешения публикации нет.
+`finish_recording_dialog.dart` содержит общее подтверждение. `record_exit_guard.dart`
+управляет одним диалогом на активную запись, закрывает его при потере сессии и
+вызывает прежний WAV/journal/upload. `app_router.dart` защищает уход с Record,
+`record_screen.dart` переиспользует то же подтверждение для Stop. Новый
+`record_confirmation_test.dart` проверяет сценарии на реальном роутере.
+
+Независимый проход [REVIEW-FE-001.49-01](../reviews/REVIEW-FE-001.49-01.md)
+завершён без замечаний. Приёмка владельцем ожидается.

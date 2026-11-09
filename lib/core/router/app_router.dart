@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../shell/main_shell.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/record/presentation/record_exit_guard.dart';
 import '../../features/record/presentation/record_screen.dart';
 import '../../features/workspace/presentation/workspaces_screen.dart';
 import '../../features/workspace/presentation/workspace_detail_screen.dart';
@@ -31,6 +32,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/record',
+            onExit: (context) =>
+                ref.read(recordExitGuardProvider).canLeave(context),
             pageBuilder: (_, state) => NoTransitionPage(
               child: RecordScreen(
                 workspaceId: state.uri.queryParameters['workspaceId'],
