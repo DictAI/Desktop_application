@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/providers/providers.dart';
+import '../../auth/presentation/auth_notifier.dart';
 import '../data/dto/participant_dto.dart';
 import 'workspace_notifier.dart';
 import 'workspaces_screen.dart';
@@ -21,7 +23,7 @@ class WorkspaceDetailScreen extends ConsumerWidget {
     final notifier = ref.read(workspaceDetailProvider(workspaceId).notifier);
 
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 700 ? 16 : 32),
       child: switch (state.status) {
         DetailStatus.loading => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
@@ -41,211 +43,214 @@ class WorkspaceDetailScreen extends ConsumerWidget {
 class _DetailContent extends ConsumerWidget {
   final WorkspaceDetailState state;
   final WorkspaceDetailNotifier notifier;
-
   const _DetailContent({required this.state, required this.notifier});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ws = state.workspace!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.accentSubtle,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.folder_rounded,
-                color: AppColors.accent,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
+    return CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    ws.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSubtle,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.folder_rounded,
+                      color: AppColors.accent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      ws.name,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            TextButton.icon(
-              onPressed: state.isUpdatingWorkspace
-                  ? null
-                  : () => showWorkspaceNameDialog(
-                      context,
-                      title: 'Rename Workspace',
-                      actionLabel: 'Save',
-                      initialName: ws.name,
-                      onSubmit: notifier.updateWorkspace,
-                      errorMessage: () => notifier.errorMessage,
-                    ),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Rename'),
-            ),
-            ElevatedButton.icon(
-              onPressed: state.isUpdatingWorkspace
-                  ? null
-                  : () {
-                      final recording = ref.exists(recordNotifierProvider)
-                          ? ref.read(recordNotifierProvider.notifier)
-                          : null;
-                      if (recording?.hasActiveOperation == true) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Сначала завершите активную запись или отправку. Выбранное рабочее пространство не изменено.',
-                            ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: state.isUpdatingWorkspace
+                        ? null
+                        : () {
+                            final recording = ref.exists(recordNotifierProvider)
+                                ? ref.read(recordNotifierProvider.notifier)
+                                : null;
+                            if (recording?.hasActiveOperation == true) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Сначала завершите активную запись или отправку. Выбранное рабочее пространство не изменено.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.go(
+                              Uri(
+                                path: '/record',
+                                queryParameters: {
+                                  'workspaceId': ws.workspaceId,
+                                },
+                              ).toString(),
+                              extra: ws,
+                            );
+                          },
+                    icon: const Icon(Icons.mic_rounded),
+                    label: const Text('Новая запись'),
+                  ),
+                  TextButton.icon(
+                    onPressed: state.isUpdatingWorkspace
+                        ? null
+                        : () => showWorkspaceNameDialog(
+                            context,
+                            title: 'Rename Workspace',
+                            actionLabel: 'Save',
+                            initialName: ws.name,
+                            onSubmit: notifier.updateWorkspace,
+                            errorMessage: () => notifier.errorMessage,
                           ),
-                        );
-                        return;
-                      }
-                      context.go(
-                        Uri(
-                          path: '/record',
-                          queryParameters: {'workspaceId': ws.workspaceId},
-                        ).toString(),
-                        extra: ws,
-                      );
-                    },
-              icon: const Icon(Icons.mic_rounded),
-              label: const Text('Новая запись'),
-            ),
-            IconButton(
-              onPressed: state.isUpdatingWorkspace ? null : notifier.load,
-              icon: const Icon(
-                Icons.refresh_rounded,
-                color: AppColors.textSecondary,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Rename'),
+                  ),
+                  IconButton(
+                    onPressed: state.isUpdatingWorkspace ? null : notifier.load,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                    tooltip: 'Refresh',
+                  ),
+                ],
               ),
-              tooltip: 'Refresh',
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        _MetaRow(
-          label: 'Created',
-          value: ws.createdAt.toLocal().toString().split('.').first,
-        ),
-        const SizedBox(height: 32),
-
-        if (state.errorMessage != null)
-          _ErrorBanner(
-            message: state.errorMessage!,
-            onDismiss: notifier.clearError,
-          ),
-
-        Row(
-          children: [
-            const Text(
-              'Participants',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 8),
+              _MetaRow(
+                label: 'Created',
+                value: ws.createdAt.toLocal().toString().split('.').first,
               ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${state.participants.length}',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
+              const SizedBox(height: 24),
+              if (state.errorMessage != null)
+                _ErrorBanner(
+                  message: state.errorMessage!,
+                  onDismiss: notifier.clearError,
                 ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'Participants (${state.participants.length})',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed:
+                        state.isContactBusy || state.needsContactReconciliation
+                        ? null
+                        : () =>
+                              _showContactDialog(context, notifier.workspaceId),
+                    icon: const Icon(
+                      Icons.person_add_rounded,
+                      size: 16,
+                      color: AppColors.accent,
+                    ),
+                    label: const Text(
+                      'Add',
+                      style: TextStyle(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: state.isContactBusy || state.needsContactReconciliation
-                  ? null
-                  : () => _showContactDialog(context, notifier.workspaceId),
-              icon: const Icon(
-                Icons.person_add_rounded,
-                size: 16,
-                color: AppColors.accent,
+              const SizedBox(height: 12),
+              const Text(
+                'Это контакты workspace, а не учётные записи или приглашения. '
+                'Изменение контактов не переименовывает Speaker в транскрипте.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
-              label: const Text(
-                'Add',
-                style: TextStyle(
-                  color: AppColors.accent,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(height: 8),
+              const Text(
+                'Email результатов: для workspace backend использует владельца и контакты, '
+                'для записи без workspace — только владельца. Доставка зависит от серверных настроек. '
+                'Изменение контакта не пересылает готовое письмо.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+              if (state.needsContactReconciliation) ...[
+                const SizedBox(height: 8),
+                Text(
+                  notifier.pendingContactDescription ??
+                      'Последнее изменение контакта',
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Это контакты workspace, а не учётные записи или приглашения. '
-          'Изменение контактов не переименовывает Speaker в транскрипте.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Email результатов: для workspace backend использует владельца и контакты, '
-          'для записи без workspace — только владельца. Доставка зависит от серверных настроек. '
-          'Изменение контакта не пересылает готовое письмо.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-        if (state.needsContactReconciliation) ...[
-          const SizedBox(height: 8),
-          Text(
-            notifier.pendingContactDescription ??
-                'Последнее изменение контакта',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          Wrap(
-            spacing: 8,
-            children: [
-              TextButton(
-                onPressed: state.isContactBusy
-                    ? null
-                    : notifier.reconcileContactMutation,
-                child: const Text('Проверить состояние'),
-              ),
-              if (state.canRetryContactMutation)
-                TextButton(
-                  onPressed: state.isContactBusy
-                      ? null
-                      : notifier.retryContactMutation,
-                  child: const Text('Повторить те же изменения'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: state.isContactBusy
+                          ? null
+                          : notifier.reconcileContactMutation,
+                      child: const Text('Проверить состояние'),
+                    ),
+                    if (state.canRetryContactMutation)
+                      TextButton(
+                        onPressed: state.isContactBusy
+                            ? null
+                            : notifier.retryContactMutation,
+                        child: const Text('Повторить те же изменения'),
+                      ),
+                  ],
                 ),
+              ],
+              if (state.isContactBusy) const LinearProgressIndicator(),
+              const SizedBox(height: 16),
             ],
           ),
-        ],
-        if (state.isContactBusy) const LinearProgressIndicator(),
-        const SizedBox(height: 16),
-
-        Expanded(
-          child: state.participants.isEmpty
-              ? const _EmptyParticipants()
-              : _ParticipantList(
-                  participants: state.participants,
-                  workspaceId: notifier.workspaceId,
-                  disabled:
-                      state.isContactBusy || state.needsContactReconciliation,
-                ),
         ),
+        if (state.participants.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyParticipants(),
+          )
+        else
+          SliverList.builder(
+            itemCount: state.participants.length,
+            itemBuilder: (_, index) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _ParticipantCard(
+                contact: state.participants[index],
+                workspaceId: notifier.workspaceId,
+                disabled:
+                    state.isContactBusy || state.needsContactReconciliation,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -261,7 +266,7 @@ class _MetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
-      child: Row(
+      child: Wrap(
         children: [
           Text(
             '$label: ',
@@ -362,8 +367,22 @@ class _ContactDialogState extends ConsumerState<_ContactDialog> {
     });
   }
 
+  void _dismissSession() {
+    _name.clear();
+    _email.clear();
+    final route = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
+    Future.microtask(() {
+      if (mounted && navigator.mounted && route?.isActive == true) {
+        navigator.removeRoute(route!, false);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(authNotifierProvider, (_, __) => _dismissSession());
+    ref.listen(sessionNotifierProvider, (_, __) => _dismissSession());
     final state = ref.watch(workspaceDetailProvider(widget.workspaceId));
     final busy = _working || state.isContactBusy;
     final contactAvailable =
@@ -382,6 +401,8 @@ class _ContactDialogState extends ConsumerState<_ContactDialog> {
       canPop: !busy,
       child: AlertDialog(
         backgroundColor: AppColors.surface,
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         title: Text(
           widget.remove
               ? 'Remove ${widget.contact!.name}?'
@@ -406,6 +427,7 @@ class _ContactDialogState extends ConsumerState<_ContactDialog> {
                     controller: _name,
                     enabled: editable,
                     autofocus: true,
+                    textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(hintText: 'Full name'),
                     validator: (value) => value == null || value.trim().isEmpty
                         ? 'Name required'
@@ -416,6 +438,8 @@ class _ContactDialogState extends ConsumerState<_ContactDialog> {
                     controller: _email,
                     enabled: editable,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    autocorrect: false,
                     decoration: const InputDecoration(
                       hintText: 'Email address',
                     ),
@@ -474,66 +498,80 @@ class _ContactDialogState extends ConsumerState<_ContactDialog> {
   }
 }
 
-class _ParticipantList extends StatelessWidget {
-  const _ParticipantList({
-    required this.participants,
+class _ParticipantCard extends StatelessWidget {
+  const _ParticipantCard({
+    required this.contact,
     required this.workspaceId,
     required this.disabled,
   });
-  final List<ParticipantDto> participants;
+  final ParticipantDto contact;
   final String workspaceId;
   final bool disabled;
+
   @override
-  Widget build(BuildContext context) => ListView.separated(
-    itemCount: participants.length,
-    separatorBuilder: (_, __) => const SizedBox(height: 8),
-    itemBuilder: (_, index) {
-      final contact = participants[index];
-      return Card(
-        key: ValueKey(contact.participantId),
-        color: AppColors.surface,
-        child: ListTile(
-          title: Text(contact.name),
-          subtitle: Text(contact.email),
-          leading: const Icon(
-            Icons.person_outline_rounded,
-            color: AppColors.accent,
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Edit contact',
-                onPressed: disabled
-                    ? null
-                    : () => _showContactDialog(
-                        context,
-                        workspaceId,
-                        contact: contact,
-                      ),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              IconButton(
-                tooltip: 'Remove contact',
-                onPressed: disabled
-                    ? null
-                    : () => _showContactDialog(
-                        context,
-                        workspaceId,
-                        contact: contact,
-                        remove: true,
-                      ),
-                icon: const Icon(
-                  Icons.person_remove_rounded,
-                  color: AppColors.error,
-                ),
-              ),
-            ],
-          ),
+  Widget build(BuildContext context) {
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Edit contact',
+          onPressed: disabled
+              ? null
+              : () =>
+                    _showContactDialog(context, workspaceId, contact: contact),
+          icon: const Icon(Icons.edit_outlined),
         ),
-      );
-    },
-  );
+        IconButton(
+          tooltip: 'Remove contact',
+          onPressed: disabled
+              ? null
+              : () => _showContactDialog(
+                  context,
+                  workspaceId,
+                  contact: contact,
+                  remove: true,
+                ),
+          icon: const Icon(Icons.person_remove_rounded, color: AppColors.error),
+        ),
+      ],
+    );
+    return Card(
+      key: ValueKey(contact.participantId),
+      color: AppColors.surface,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600 ||
+              MediaQuery.textScalerOf(context).scale(16) > 24) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(contact.email),
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: actions),
+                ],
+              ),
+            );
+          }
+          return ListTile(
+            title: Text(contact.name),
+            subtitle: Text(contact.email),
+            leading: const Icon(
+              Icons.person_outline_rounded,
+              color: AppColors.accent,
+            ),
+            trailing: actions,
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _EmptyParticipants extends StatelessWidget {
@@ -577,9 +615,10 @@ class _ErrorBanner extends StatelessWidget {
               style: const TextStyle(color: AppColors.error, fontSize: 13),
             ),
           ),
-          GestureDetector(
-            onTap: onDismiss,
-            child: const Icon(
+          IconButton(
+            tooltip: 'Dismiss error',
+            onPressed: onDismiss,
+            icon: const Icon(
               Icons.close_rounded,
               color: AppColors.error,
               size: 16,
@@ -600,37 +639,39 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: AppColors.error,
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.error,
+              size: 48,
             ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: AppColors.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

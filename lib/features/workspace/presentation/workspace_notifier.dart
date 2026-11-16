@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../auth/presentation/auth_notifier.dart';
 import '../data/workspace_api.dart';
 import '../data/dto/workspace_dto.dart';
 import '../data/dto/participant_dto.dart';
@@ -36,6 +37,8 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   final WorkspaceApi _api;
   final void Function(WorkspaceDto)? onUpdated;
   final void Function(String)? onDeleted;
+  bool _sessionActive = true;
+  bool get _current => mounted && _sessionActive;
   int _epoch = 0;
   bool _loading = false;
   // Only changes committed after the latest list request started are overlaid.
@@ -48,7 +51,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   }
 
   Future<void> load() async {
-    if (state.isMutating) return;
+    if (!_current || state.isMutating) return;
     final epoch = ++_epoch;
     _loading = true;
     _updatedDuringLoad.clear();
@@ -56,7 +59,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
     state = state.copyWith(status: WorkspacesStatus.loading);
     try {
       final list = await _api.getWorkspaces();
-      if (!mounted || epoch != _epoch) return;
+      if (!_current || epoch != _epoch) return;
       state = state.copyWith(
         status: WorkspacesStatus.loaded,
         workspaces: List.unmodifiable([
@@ -71,7 +74,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
         ]),
       );
     } on AppException catch (e) {
-      if (!mounted || epoch != _epoch) return;
+      if (!_current || epoch != _epoch) return;
       state = state.copyWith(
         status: WorkspacesStatus.error,
         errorMessage: e.message,
@@ -89,7 +92,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   Future<WorkspaceDto?> rename(String id, String name) => _save(name, id: id);
 
   Future<WorkspaceDto?> _save(String name, {String? id}) async {
-    if (state.isMutating) return null;
+    if (!_current || state.isMutating) return null;
     if (name.trim().isEmpty) {
       state = state.copyWith(
         errorMessage: 'Введите название рабочего пространства.',
@@ -101,12 +104,12 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
       final ws = id == null
           ? await _api.createWorkspace(name.trim())
           : await _api.updateWorkspace(id, name.trim());
-      if (!mounted) return null;
+      if (!_current) return null;
       acceptWorkspace(ws);
       onUpdated?.call(ws);
       return ws;
     } on AppException catch (e) {
-      if (mounted) {
+      if (_current) {
         state = state.copyWith(
           isMutating: false,
           status: _loading ? WorkspacesStatus.loading : WorkspacesStatus.loaded,
@@ -118,7 +121,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   }
 
   void acceptWorkspace(WorkspaceDto ws) {
-    if (!mounted) return;
+    if (!_current) return;
     if (_loading) {
       _updatedDuringLoad[ws.workspaceId] = ws;
       _removedDuringLoad.remove(ws.workspaceId);
@@ -138,16 +141,16 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   }
 
   Future<bool> delete(String workspaceId) async {
-    if (state.isMutating) return false;
+    if (!_current || state.isMutating) return false;
     state = state.copyWith(isMutating: true);
     try {
       await _api.deleteWorkspace(workspaceId);
-      if (!mounted) return false;
+      if (!_current) return false;
       removeWorkspace(workspaceId);
       onDeleted?.call(workspaceId);
       return true;
     } on AppException catch (e) {
-      if (mounted) {
+      if (_current) {
         state = state.copyWith(
           isMutating: false,
           status: _loading ? WorkspacesStatus.loading : WorkspacesStatus.loaded,
@@ -159,7 +162,7 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
   }
 
   void removeWorkspace(String id) {
-    if (!mounted) return;
+    if (!_current) return;
     if (_loading) {
       _updatedDuringLoad.remove(id);
       _removedDuringLoad.add(id);
@@ -173,13 +176,28 @@ class WorkspacesNotifier extends StateNotifier<WorkspacesState> {
     );
   }
 
-  void clearError() => state = state.copyWith();
+  void closeSession() {
+    if (!_current) return;
+    _sessionActive = false;
+    _epoch++;
+    _loading = false;
+    _updatedDuringLoad.clear();
+    _removedDuringLoad.clear();
+    state = const WorkspacesState(
+      status: WorkspacesStatus.error,
+      errorMessage: 'Сессия изменилась. Войдите снова.',
+    );
+  }
+
+  void clearError() {
+    if (_current) state = state.copyWith();
+  }
 }
 
 final StateNotifierProvider<WorkspacesNotifier, WorkspacesState>
 workspacesNotifierProvider =
     StateNotifierProvider<WorkspacesNotifier, WorkspacesState>((ref) {
-      return WorkspacesNotifier(
+      final notifier = WorkspacesNotifier(
         ref.read(workspaceApiProvider),
         onUpdated: (ws) {
           if (ref.exists(workspaceDetailProvider(ws.workspaceId))) {
@@ -202,6 +220,12 @@ workspacesNotifierProvider =
           }
         },
       );
+      ref.listen(authNotifierProvider, (_, next) {
+        notifier.closeSession();
+        if (next.status == AuthStatus.success) ref.invalidateSelf();
+      });
+      ref.listen(sessionNotifierProvider, (_, __) => notifier.closeSession());
+      return notifier;
     });
 
 // ─── Single workspace detail ──────────────────────────────────────────────────
@@ -260,6 +284,8 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
   final WorkspaceApi _api;
   final String workspaceId;
   final void Function(WorkspaceDto)? onUpdated;
+  bool _sessionActive = true;
+  bool get _current => mounted && _sessionActive;
   int _loadEpoch = 0;
   bool _loading = false;
   WorkspaceDto? _workspaceDuringLoad;
@@ -283,22 +309,23 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
   }
 
   Future<void> load() async {
-    if (state.isUpdatingWorkspace || state.isContactBusy) return;
+    if (!_current || state.isUpdatingWorkspace || state.isContactBusy) return;
     final epoch = ++_loadEpoch;
     _loading = true;
     _workspaceDuringLoad = null;
     state = state.copyWith(status: DetailStatus.loading, errorMessage: null);
     try {
       final ws = await _api.getWorkspace(workspaceId);
+      if (!_current || epoch != _loadEpoch) return;
       final participants = await _api.getParticipants(workspaceId);
-      if (!mounted || epoch != _loadEpoch) return;
+      if (!_current || epoch != _loadEpoch) return;
       state = state.copyWith(
         status: DetailStatus.loaded,
         workspace: _workspaceDuringLoad ?? ws,
         participants: participants,
       );
     } on AppException catch (e) {
-      if (!mounted || epoch != _loadEpoch) return;
+      if (!_current || epoch != _loadEpoch) return;
       state = state.copyWith(
         status: DetailStatus.error,
         errorMessage: e.message,
@@ -347,7 +374,7 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     );
   }
 
-  bool _contactAvailable() => mounted && !_loading && !state.isContactBusy;
+  bool _contactAvailable() => _current && !_loading && !state.isContactBusy;
 
   Future<bool> _changeContact(
     _ContactMutation mutation, {
@@ -392,7 +419,7 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
             name: mutation.name,
             email: mutation.email,
           );
-          if (!mounted) return false;
+          if (!_current) return false;
           _acceptContact(contact);
         case _ContactAction.edit:
           final contact = await _api.updateParticipant(
@@ -401,14 +428,14 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
             name: mutation.name,
             email: mutation.email,
           );
-          if (!mounted) return false;
+          if (!_current) return false;
           _acceptContact(contact);
         case _ContactAction.remove:
           await _api.deleteParticipant(
             workspaceId: workspaceId,
             participantId: mutation.id!,
           );
-          if (!mounted) return false;
+          if (!_current) return false;
           state = state.copyWith(
             participants: List.unmodifiable(
               state.participants.where((p) => p.participantId != mutation.id),
@@ -424,7 +451,7 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
       );
       return true;
     } on AppException catch (error) {
-      if (!mounted) return false;
+      if (!_current) return false;
       final conflict =
           error is ApiFailure && error.kind == ApiFailureKind.conflict;
       final uncertain = retry || _uncertainContactOutcome(error);
@@ -480,7 +507,7 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     state = state.copyWith(isContactBusy: true, canRetryContactMutation: false);
     try {
       final contacts = await _api.getParticipants(workspaceId);
-      if (!mounted || pending != _pendingContactMutation) return false;
+      if (!_current || pending != _pendingContactMutation) return false;
       final confirmed = switch (pending.action) {
         _ContactAction.add => contacts.any(
           (p) => p.email == pending.email && p.name == pending.name,
@@ -522,7 +549,7 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
       );
       return confirmed;
     } on AppException catch (error) {
-      if (mounted) {
+      if (_current) {
         state = state.copyWith(
           isContactBusy: false,
           canRetryContactMutation: false,
@@ -541,13 +568,13 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
   }
 
   void acceptWorkspace(WorkspaceDto ws) {
-    if (!mounted || ws.workspaceId != workspaceId) return;
+    if (!_current || ws.workspaceId != workspaceId) return;
     if (_loading) _workspaceDuringLoad = ws;
     state = state.copyWith(workspace: ws, isUpdatingWorkspace: false);
   }
 
   Future<bool> updateWorkspace(String name) async {
-    if (state.isUpdatingWorkspace) return false;
+    if (!_current || state.isUpdatingWorkspace) return false;
     if (name.trim().isEmpty) {
       state = state.copyWith(
         errorMessage: 'Введите название рабочего пространства.',
@@ -557,12 +584,12 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     state = state.copyWith(isUpdatingWorkspace: true);
     try {
       final updated = await _api.updateWorkspace(workspaceId, name.trim());
-      if (!mounted) return false;
+      if (!_current) return false;
       acceptWorkspace(updated);
       onUpdated?.call(updated);
       return true;
     } on AppException catch (e) {
-      if (mounted) {
+      if (_current) {
         state = state.copyWith(
           isUpdatingWorkspace: false,
           errorMessage: e.message,
@@ -572,7 +599,22 @@ class WorkspaceDetailNotifier extends StateNotifier<WorkspaceDetailState> {
     }
   }
 
-  void clearError() => state = state.copyWith(errorMessage: null);
+  void closeSession() {
+    if (!_current) return;
+    _sessionActive = false;
+    _loadEpoch++;
+    _loading = false;
+    _workspaceDuringLoad = null;
+    _pendingContactMutation = null;
+    state = const WorkspaceDetailState(
+      status: DetailStatus.error,
+      errorMessage: 'Сессия изменилась. Войдите снова.',
+    );
+  }
+
+  void clearError() {
+    if (_current) state = state.copyWith(errorMessage: null);
+  }
 }
 
 final StateNotifierProviderFamily<
@@ -585,8 +627,8 @@ workspaceDetailProvider =
       WorkspaceDetailNotifier,
       WorkspaceDetailState,
       String
-    >(
-      (ref, workspaceId) => WorkspaceDetailNotifier(
+    >((ref, workspaceId) {
+      final notifier = WorkspaceDetailNotifier(
         ref.read(workspaceApiProvider),
         workspaceId,
         onUpdated: (ws) {
@@ -599,8 +641,14 @@ workspaceDetailProvider =
                 .renameWorkspace(ws.workspaceId, ws.name);
           }
         },
-      ),
-    );
+      );
+      ref.listen(authNotifierProvider, (_, next) {
+        notifier.closeSession();
+        if (next.status == AuthStatus.success) ref.invalidateSelf();
+      });
+      ref.listen(sessionNotifierProvider, (_, __) => notifier.closeSession());
+      return notifier;
+    });
 
 enum _ContactAction { add, edit, remove }
 

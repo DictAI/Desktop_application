@@ -13,6 +13,7 @@ import 'package:dict_ai/features/record/presentation/record_screen.dart';
 import 'package:dict_ai/features/workspace/data/dto/workspace_dto.dart';
 import 'package:dict_ai/shared/providers/providers.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,6 +150,7 @@ void main() {
   late _Capture capture;
   late RecordNotifier record;
   Future<void> Function()? closeFixture;
+  var mobileFixture = false;
 
   RecordState state() => container.read(recordNotifierProvider);
   String path() => router.routerDelegate.currentConfiguration.uri.path;
@@ -156,14 +158,21 @@ void main() {
       transport.requests.where((request) => request.method == 'POST');
 
   void guardTest(String description, Future<void> Function(WidgetTester) run) {
-    testWidgets(description, (tester) async {
-      try {
-        await run(tester);
-      } finally {
-        await closeFixture?.call();
-        closeFixture = null;
-      }
-    });
+    for (final mobile in [false, true]) {
+      testWidgets('$description (${mobile ? 'iOS' : 'desktop'})', (
+        tester,
+      ) async {
+        mobileFixture = mobile;
+        debugDefaultTargetPlatformOverride = mobile ? TargetPlatform.iOS : null;
+        try {
+          await run(tester);
+        } finally {
+          await closeFixture?.call();
+          closeFixture = null;
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
   }
 
   Future<void> mount(WidgetTester tester, {bool anonymous = false}) async {
@@ -209,7 +218,9 @@ void main() {
     } else {
       router.go('/record?workspaceId=$_workspace', extra: workspace);
     }
-    await tester.binding.setSurfaceSize(const Size(1440, 1100));
+    await tester.binding.setSurfaceSize(
+      mobileFixture ? const Size(375, 812) : const Size(1440, 1100),
+    );
     closeFixture = () async {
       await tester.pumpWidget(const SizedBox.shrink());
       router.dispose();

@@ -1,3 +1,357 @@
+# Дополнение управления записью — 2026-11-17
+
+Пользователь просит добавить в задачи новый сценарий паузы/отправки/отмены.
+Разрешено только планирование, реализация TASK-FE-002.20 ещё не выбрана.
+Primary-agent единолично пишет этот реестр, PLAN-FE-002, decisions, IOS_TARGET_UX,
+карточки .08/.09 и новую .20. Reviewer пишет только новый отчёт .20-01.
+Planning checks: `python3 /tmp/check_dictai_record_controls_plan.py` и
+`git diff --check` PASS (cwd frontend, Python3/Ruby Psych/Git); YAML20/DAG/table,
+scope/planned paths/links/selection и baseline355 проверены. Только6 doc changes
+и2 новых task/review; остальные349 файлов и HEAD/staging сохранены.
+Независимый [review .20-01](reviews/REVIEW-FE-002.20-01.md) проверяет planning diff;
+итоговый статус/findings — в отчёте. Flutter/tests/build/device NOT RUN: doc-only.
+Никаких source/test/platform/dependency изменений. Исходный diff сохранён:
+`/tmp/dictai-record-controls-planning-baseline/` (hashes/status/patch/HEAD).
+
+| ID | Owner | Path | Состояние резерва |
+|---|---|---|---|
+| TASK-FE-002.20 | primary-agent (planning); implementer unassigned | docs/ai/tasks/TASK-FE-002.20.md | created |
+| REVIEW-FE-002.20-01 | /root/record_controls_plan_review | docs/ai/reviews/REVIEW-FE-002.20-01.md | created |
+
+После .08 новая .20 предшествует невыбранной .09: .08 → .20 → .09 → .10.
+Предыдущие .08 checks/review описывают прежний Stop/exit flow и не доказывают
+новые требования. Selected implementation IDs и старые review reports сохраняются.
+
+# Продолжение выбранного iOS блока — 2026-11-17
+
+Интеграция: PASS658 host tests; scoped format27 PASS; analyze PASS/7 прежних info.
+Global format FAIL на10 прежних файлах вне scope, без записи. Main build12.3s,
+install/launch/render PASS; permission-denied native PASS, mic grant восстановлен.
+Карточки .04/.05/.06/.07/.08/.10 переданы в review, текущий owner primary-agent.
+Полная physical readiness не заявлена; команды/evidence в карточках и плане.
+Независимые [batch review](reviews/REVIEW-FE-002.04-02.md) и
+[audio/Files review](reviews/REVIEW-FE-002.06-01.md) — reviewed/complete, открытых
+findings нет. F01 P3 о fixture evidence исправлен и подтверждён delta.
+Doc checker `/tmp/check_dictai_ios_resume.py` PASS: YAML/status/scope/table,
+219 локальных ссылок/whitespace; batch342: все25 changes/13new в scope;
+resume353: только9 doc changes/2new reports, остальные344 файла неизменны,
+HEAD/staging сохранены. Diff доступен в рабочем дереве, отчёты — по ссылкам выше.
+
+
+Пользователь поручил посмотреть работу предыдущего агента и продолжить, разрешив
+субагентов. Продолжается только выбранный блок .04/.05/.06/.07/.08/.10 из ADR-FE-011;
+.09 и .11–.19 не открываются. Primary-agent принимает sole write всех его exact
+implementation/test/task scopes после остановки прежних исполнителей; параллельной
+записи исходников нет. Остальные исходные изменения сохраняются. Fresh baseline
+353 файлов, initial patch/status/HEAD: `/tmp/dictai-ios-resume-20261117/`.
+
+Независимые reviewers `/root/ios_batch_review` и `/root/ios_audio_review` получают
+ранее зарезервированные REVIEW-FE-002.04-02 и REVIEW-FE-002.06-01 соответственно;
+пишут только свои отчёты. Координатор дополняет checks/Result, исправляет findings
+выбранного scope и возвращает delta на review. Physical iPhone gates остаются
+NOT RUN; accepted, commit/push/release не поручены.
+
+# Параллельный выбранный iOS блок — 2026-11-16
+
+Пользователь поручил сделать весь предложенный объём и разрешил до 10 агентов.
+Выбраны .04 (оставшийся login UI), .05, .06, .07, .08 (mobile Record и guards),
+.10 (mobile library на существующем flow). .09 и .11–.19 не выбраны. Physical
+criteria .03/.06/.07/.08 сохраняются: отсутствие подписи ограничивает device
+verification, не запрещает прямо выбранную разработку/Simulator checks.
+Решение и интеграционные ограничения — ADR-FE-011 в decisions.md.
+
+Baseline342: `/tmp/dictai-ios-batch-baseline/` (hashes, snapshots, initial patch).
+Существующие source/storage/native/docs changes сохраняются. Commit/push/release
+и accepted не поручены. Coordinator/root единолично пишет active-plan, PLAN-FE-002,
+decisions и интеграционные `lib/core/router/app_router.dart`,
+`lib/core/shell/main_shell.dart`, `test/core/router/ios_navigation_test.dart`,
+`test/features/workspace/profile_free_flow_test.dart` (обновление async fixture
+после нового реального WAV import/copy; функциональные критерии сохраняются).
+Providers/theme/dependencies/storage read-only, если выбранная задача не требует
+явно согласованного изменения. SDK `/tmp/dictai-flutter-3.41.3`, no lock updates.
+
+| Task | Sole writer | Exact scope |
+|---|---|---|
+| TASK-FE-002.04 | /root/ios_login | `lib/features/auth/presentation/login_screen.dart`, `test/features/auth/ios_login_layout_test.dart`, `docs/ai/tasks/TASK-FE-002.04.md` |
+| TASK-FE-002.05 | /root/ios_workspaces_batch | `lib/features/workspace/presentation/workspaces_screen.dart`, `lib/features/workspace/presentation/workspace_detail_screen.dart`, `lib/features/workspace/presentation/workspace_notifier.dart`, `test/features/workspace/ios_workspace_test.dart`, `docs/ai/tasks/TASK-FE-002.05.md` |
+| TASK-FE-002.06 | primary-agent | `lib/features/record/data/ios_audio_capture.dart`, `lib/features/record/data/audio_capture.dart`, `lib/features/record/presentation/record_notifier.dart`, `ios/Runner/AudioSessionBridge.swift`, `ios/Runner/AppDelegate.swift`, `ios/Runner/Info.plist`, `ios/Runner.xcodeproj/project.pbxproj`, `test/features/record/ios_audio_capture_test.dart`, `test/features/record/ios_audio_smoke_app.dart`, `docs/testing/IOS_AUDIO.ru.md`, `docs/ai/tasks/TASK-FE-002.06.md` |
+| TASK-FE-002.07 | /root/ios_files | `lib/features/record/data/ios_wav_import.dart`, `lib/features/record/presentation/upload_modal.dart`, `lib/features/record/data/wav_validator.dart`, `test/features/record/ios_wav_import_test.dart`, `docs/ai/tasks/TASK-FE-002.07.md` |
+| TASK-FE-002.08 | /root/ios_record_ui | `lib/features/record/presentation/record_screen.dart`, `lib/features/record/presentation/finish_recording_dialog.dart`, `lib/features/record/presentation/record_exit_guard.dart`, `test/features/record/ios_record_flow_test.dart`, `test/features/record/record_confirmation_test.dart`, `docs/ai/tasks/TASK-FE-002.08.md` |
+| TASK-FE-002.10 | /root/ios_results_ui | `lib/features/results/presentation/results_screen.dart`, `lib/features/results/presentation/results_notifier.dart`, `test/features/results/ios_results_library_test.dart`, `docs/ai/tasks/TASK-FE-002.10.md` |
+
+После готовых handoffs координатор принимает единоличную запись карточек
+TASK-FE-002.04/.05/.07/.08/.10 для общей Verification/Result/status синхронизации;
+их functional/test scopes frozen у исполнителей до review findings. Source/test
+changes root: integration nav test и обновление async profilefree fixture.
+
+После stream/encrypted-context error ios_audio и затем ios_audio_finish
+завершили turn. Coordinator/root принимает весь exact .06 scope: частичные
+реализация/tests/smoke сохранены, никакой параллельной записи .06 нет. Native
+Runner/AppDelegate/Info.plist/project и AudioCapture/RecordNotifier теперь
+пишет только root для завершения docs, checks и review findings. Files agent использует существующий file_picker; необходимость
+native bridge передаёт координатору, сам shared native files не меняет. Record UI
+читает notifier/interface, но не пишет их; согласовывает запросы с ios_audio.
+UploadModal и UploadLanguageControls пишет только ios_files. Общие Flutter
+build/native smoke запускает root после handoff, без параллельных Xcode builds.
+Task tests можно запускать отдельно (Flutter startup lock штатный).
+
+| Review ID | Reviewer | Path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.04-02 | /root/ios_batch_review | docs/ai/reviews/REVIEW-FE-002.04-02.md | created |
+| REVIEW-FE-002.06-01 | /root/ios_audio_review | docs/ai/reviews/REVIEW-FE-002.06-01.md | created |
+
+Оба reviewer независимы от реализации; первый проверяет все выбранные задачи и
+организационную delta после интеграции, второй углублённо native audio/import.
+Пишут только назначенные reports. Исправляет findings назначенный implementer
+либо root после явно переданного scope. Переходы не требуют пользовательского
+промежуточного review. Ниже сохранена история предыдущих поручений.
+
+# Выбранная адаптация навигации для телефона — 2026-11-16
+
+Новое прямое поручение пользователя: адаптировать дизайн под телефон, заменив
+левую панель нижним навбаром. На iOS используется нижняя панель при любой
+ширине, на других платформах — при ширине менее 600 logical px.
+Выбран конкретный UI scope TASK-FE-002.04:
+`lib/core/shell/main_shell.dart`, новый `test/core/router/ios_navigation_test.dart`
+и собственная карточка. AppBar содержит logout и Back для вложенных маршрутов.
+Единственный writer primary-agent; он же пишет общие
+PLAN/active-plan. Login layout и внутренние экраны, storage/API/native и .05
+в этом проходе не меняются. Baseline340 сохранён в
+`/tmp/dictai-mobile-nav-baseline.json`; продолжение baseline340:
+`/tmp/dictai-ios-nav-start-hashes.json`, исходный diff
+`/tmp/dictai-ios-nav-baseline.patch`. Существующие изменения сохранены.
+
+Выбранный UI scope реализован, независимый review завершён; полная .04 не verified и
+не accepted. 33 targeted tests PASS; simulator build PASS (Xcode 16.2s);
+analyze --no-fatal-infos PASS (7 прежних info вне scope).
+Независимый [REVIEW-FE-002.04-01](reviews/REVIEW-FE-002.04-01.md) завершён:
+reviewed/complete, actionable findings нет; reviewer самостоятельно повторил
+33 tests, format и doc/preservation checks. Runtime iPhone/VoiceOver/swipe
+не проверялись. После последующего сообщения пользователя новая сборка
+установлена и запущена на iPhone 17 Pro Simulator; screenshot подтверждает
+нижние вкладки на Record. Исправлен контраст активной иконки; повторные
+33 tests/analyze/build PASS. Подробности — в TASK-FE-002.04, раздел применения.
+Primary-agent также пишет текущие записи этого реестра и PLAN-FE-002;
+остальные исходники, platform/config/dependencies и прежние reviews read-only.
+
+Это отдельное явно порученное UI изменение поверх проверенного Simulator.
+Физические проверки .03 остаются обязательными для полной iOS readiness;
+они не объявляются выполненными и не подменяются UI проверками. Новое поручение
+разрешает этот scope оболочки без ожидания подписи. Вся .04 и последующая .05
+автоматически завершёнными не считаются. Commit/push/release/accepted не поручены.
+
+| ID | Owner | Exact report path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.04-01 | /root/mobile_nav_review | docs/ai/reviews/REVIEW-FE-002.04-01.md | created |
+
+# Текущий итог .01–.05 — 2026-11-16
+
+.01/.02 checks и независимый review завершены. .03: targeted60/full561 PASS,
+final analyze PASS с9прежними info, все9native Keychain/TLS/auth phases PASS.
+Создан разрешённый тестовый аккаунт, данные только вне repo. После smoke
+координатор восстановил production main.dart (build17.6s/install/launch/render
+PASS), проверил cleanup test files. Независимый REVIEW-FE-002.03-02 завершён:
+F01 P3 исправлен и подтверждён delta, открытых findings нет. Primary-agent — текущий sole writer exact .03,
+общего учёта и blocker cards .04/.05 после завершённых doc handoffs.
+
+.03 status blocked: обязательные физические lock/unlock/unavailable storage,
+account switch/reinstall/restore/iPhone HTTPS не выполнены, подпись недоступна.
+.04/.05 остаются blocked; новый scope .06–.19 не открывается. Ни Simulator PASS,
+ни review не заменяют эти gates. HEAD/staging/dependencies сохраняются,
+accepted/commit/push/release не разрешены. Ниже — история исполнения.
+
+# Финальная интеграция TASK-FE-002.03 — 2026-11-16
+
+После code handoff `/root/ios_session` завершил turn из-за quota exceeded.
+Primary-agent принимает sole write всего exact scope .03 для финальных evidence,
+исправлений и review handoff; исходный implementer больше не пишет. Host production
+source/9новых тестов остаются frozen после PASS60/561. Native fallback config
+проверен: write/restart/legacy_delete/empty/https_untrusted PASS; positive TLS/auth
+выполняются. Общие учётные документы и блокирующие карточки .04/.05 теперь также
+пишет координатор после завершённых doc handoffs их владельцев. Independent
+reviewer `.03-02` остаётся отдельным от implementers и координатора.
+
+# Передача TASK-FE-002.03 — 2026-11-16
+
+.02 прошла Simulator build/launch/render checks и независимый REVIEW-FE-002.02-03
+без findings. .03 status in_progress, единственный implementer `/root/ios_session`:
+полный exact scope карточки + заранее добавленный native smoke target
+`test/core/storage/ios_session_smoke_app.dart`. Общие plan/registry пишет только
+primary-agent. .02 source заморожен; перечисленные Runner paths при необходимости
+пишет теперь только .03 owner. Root выполняет Flutter/simctl/TLS проверки по
+готовому handoff, без одновременных сборок. Baseline335 сохранён в
+`/tmp/dictai-ios-session-baseline.json`.
+
+Разрешён тестовый аккаунт на стенде и передача данных пользователю. Пароль/JWT
+не сохраняются в repo/docs/logs; временный credentials file вне repo с mode0600.
+CA trust разрешён только в выбранном Simulator для проверки supplied HTTPS,
+без глобального Mac trust, TLS bypass или ATS exceptions. Physical iPhone checks
+не отменены: подпись недоступна. .04/.05 ждут все обязательные checks/review .03.
+
+Документационная синхронизация выбранной очереди: `/root/ios_navigation` пишет
+только TASK-FE-002.04.md, `/root/ios_workspaces` — только TASK-FE-002.05.md.
+Их functional gates закрыты; обновляется причина blocker с учётом готовой .02
+и выполняемой .03 с недоступными physical checks. Эти карточки войдут в
+независимый REVIEW-FE-002.03-02 вместе с .03 и общим учётом.
+
+| ID | Owner | Exact report path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.03-02 | /root/ios_sdk3413_review | docs/ai/reviews/REVIEW-FE-002.03-02.md | created |
+
+# Возобновление .02: Simulator установлен — 2026-11-16
+
+Пользователь установил iOS Simulator. Runtime iOS26.5 build23F77 подтверждён;
+actual build Flutter3.41.3 PASS (exit0, Xcode193.9s), install/launch PASS на
+выбранном iPhone17 Pro. Визуально проверена отрисовка существующей формы входа.
+Первоначальный белый launch screen не выдаётся за UI evidence. Выбраны прежние
+.01–.05, новых задач нет. Baseline334 сохранён:
+`/tmp/dictai-ios-simulator-baseline.json`, HEAD260b149.
+
+Primary-agent пишет exact scope .02 и общие plan/registry; native source в этом
+проходе не менялся. .02 status review; независимый .02-03 завершён без findings, .03 dependency
+gate открыт без новой приёмки. .04/.05 по-прежнему ждут обязательные
+checks/review зависимости. SDK3.41.3 постоянный, pubspec/lock и подпись не меняются.
+iPhone signing недоступна по ответу пользователя, Simulator её не заменяет.
+Commit/push/accepted не поручены. Дальше сохранена история предыдущих проходов.
+
+| ID | Owner | Exact report path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.02-03 | /root/ios_simulator_review | docs/ai/reviews/REVIEW-FE-002.02-03.md | created |
+
+# Возобновление .02 с Flutter 3.41.3 — 2026-11-16
+
+Пользователь явно разрешил использовать отдельный Flutter 3.41.3. Разрешение
+применяется к подбору toolchain для выбранного блока .01–.05; обновление
+pubspec/lock, подписи и новые задачи не поручены. SDK устанавливается отдельно
+в `/Users/mxdnght/.local/share/dictai/flutter/3.41.3`; первоначальный путь
+`/tmp/dictai-flutter-3.41.3` сохранён как alias. Системный SDK не заменяется.
+Baseline возобновления:
+`/tmp/dictai-ios-sdk3413-baseline.json` (332 файла; прежний diff сохранён).
+
+Primary-agent принимает единоличную запись exact scope .02, включая её карточку,
+Runner/.metadata/Podfile.lock и baseline/manifest docs; прежний writer завершил
+handoff. Общие план/реестр также пишет primary-agent. .03–.05 пока blocked по
+прежним gates и недоступной подписи, их функциональный scope не открывается.
+Текущий actual результат на3.41.3: enforced pub PASS с исходным lock,
+552 tests PASS, analyze PASS (9 прежних info). Native CocoaPods install PASS759ms (после переноса SDK615ms),
+создан разрешённый `ios/Podfile.lock`, штатно изменены project.pbxproj и workspace.
+Flutter simulator build FAIL: Xcode не имеет generic Simulator destination,
+iOS26.5 platform/runtime не установлен. Прямой xcodebuild также FAIL70/no destinations.
+Список Simulator runtimes по-прежнему пуст; запуск и native linking не доказаны.
+.02 остаётся blocked на platform/launch, прежний blocker SDK/lock устранён.
+.03–.05 остаются blocked; подпись iPhone по-прежнему недоступна.
+
+Точный SDK tag3.41.3/revision48c32af034, Dart3.11.1 установлен отдельно; git tag
+checkout показывает channel user-branch. `.metadata` creation provenance3.44
+сохранён. Все142 protected lib/test/macOS/Linux/pubspec/lock/rules/architecture
+файла неизменны относительно fresh baseline. Системный Flutter не переключался,
+новых dependencies/permissions/backend изменений нет. Команды и logs текущего
+прохода — в TASK-FE-002.02 и IOS_BASELINE; historical3.44 candidate не применён.
+
+Независимый reviewer получает только новый отчёт после checks. Commit/push и
+accepted не разрешены. Ниже сохранена история предыдущего прохода.
+
+| ID | Owner | Exact report path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.02-02 | /root/ios_sdk3413_review | docs/ai/reviews/REVIEW-FE-002.02-02.md | created |
+
+Независимый [REVIEW-FE-002.02-02](reviews/REVIEW-FE-002.02-02.md) завершён:
+reviewed/complete, F01 P3 manifest исправлен и повторно проверен, открытых findings
+нет. Review подтвердил source/native lock/docs и limits actual verification;
+.02 сохраняет blocked, first launch AC открыт, .03–.05 не разблокированы.
+Итоговые checks: `python3 /tmp/check_dictai_ios_sdk3413.py`,
+`python3 /tmp/check_dictai_ios_five.py`, native manifest checker, plutil3,
+`git diff --check` — PASS. Fresh baseline delta:8 existing (включая сторонний
+DS_Store),2new paths (native lock/review). Общий diff:9 existing/48 new.
+HEAD260b149 и staging сохранены, commit/push/release/accepted не выполнялись.
+
+# Исполнение пяти iOS-задач — 2026-11-16
+
+Пользователь поручил запустить пять агентов для пяти iOS-задач по принятому flow.
+Выбран ближайший блок TASK-FE-002.01–.05 из PLAN-FE-002. Реализация разрешена
+только в этих карточках; .06–.19 не выбраны. Исходный HEAD `260b149`, git status
+чистый; baseline hashes сохранены в `/tmp/dictai-ios-five-baseline.json`.
+Commit/push/merge/release не поручены, accepted автоматически не выставляется.
+
+Координатор primary-agent пишет этот реестр и таблицу PLAN-FE-002. Исполнители
+пишут только exact scope своей карточки и саму карточку. Передача общих путей
+происходит последовательно после checks и независимого review; до передачи
+следующий исполнитель выполняет только чтение. Лимит среды: четыре одновременно
+активных агента вместе с координатором; пять исполнителей запущены волнами.
+Позже пользователь сообщил об увеличении лимита до 10; эта сессия всё ещё
+возвращала `agent thread limit reached`, поэтому используем доступные слоты.
+
+| Task | Implementation owner | Write gate |
+|---|---|---|
+| TASK-FE-002.01 | /root/ios_baseline | checks + review .01-02 PASS; карточка завершена, status review |
+| TASK-FE-002.02 | /root/ios_runner | scaffold готов; blocked SDK/lock, checks неполные |
+| TASK-FE-002.03 | /root/ios_session | blocked .02 и обязательные device checks; только карточка |
+| TASK-FE-002.04 | /root/ios_navigation | blocked .03; только карточка |
+| TASK-FE-002.05 | /root/ios_workspaces | blocked .04; только карточка |
+
+| Review ID | Owner | Exact report path | Резерв |
+|---|---|---|---|
+| REVIEW-FE-002.01-02 | /root/ios_independent_review | docs/ai/reviews/REVIEW-FE-002.01-02.md | created |
+| REVIEW-FE-002.02-01 | /root/ios_independent_review | docs/ai/reviews/REVIEW-FE-002.02-01.md | created |
+| REVIEW-FE-002.03-01 | /root/ios_queue_review | docs/ai/reviews/REVIEW-FE-002.03-01.md | created |
+
+.01 завершила checks и независимый review .01-02, F01 P3 исправлен и повторно
+проверен, открытых findings нет. .02 допускается к реализации; .01 сохраняет
+status review, accepted не выставлен.
+
+Exact scope/planned_paths .02 дополнены `ios/Podfile.lock` до CocoaPods integration.
+Пользователь предоставил HTTPS-стенд и локальный CA; TLS проверен координатором
+с `curl --cacert` (HEAD корня: HTTP 404, проверка цепочки/адреса успешна).
+Сертификат не копируется в репозиторий. Пользователь готовит подключение iPhone.
+Постороннее изменение tracked `.DS_Store` обнаружено после baseline и сохраняется.
+
+Задачи .03–.05 записали blockers в собственных карточках, функциональный код
+не меняли. .02 `pub get --enforce-lockfile` — FAIL exit65: Flutter3.44 pins
+matcher/meta/test_api отличаются от lock. Исходный lock сохранён; candidate
+изменения ровно трёх packages готовится и проверяется только в изолированной
+копии вне проекта. Применение candidate пока не разрешено. Simulator runtime
+не установлен; загрузка8.52GB отменена после27MB из-за низкой скорости.
+Подпись для iPhone пользователь подтвердил недоступной. Эти проверки не PASS.
+
+Последний отчёт охватывает .03–.05 и итоговые координационные документы.
+Резервы не утверждают выполнение или успешность review. История ниже относится
+к прежнему planning scope и не заменяет текущее поручение.
+
+## Verification / Result выбранного исполнения
+
+Все пять исполнителей выполнили preflight и записали результат в свои карточки.
+Завершена doc-only .01: checks и независимый REVIEW-FE-002.01-02 PASS. В .02
+добавлены 41 native source path и только iOS registration в `.metadata`;
+её source review не заменяет отсутствующую сборку. .03–.05 blocked, исходники
+и тесты этих этапов не менялись. `accepted` ни одной задаче не назначен.
+
+| Проверка | Cwd / environment | Actual | Status / limitation |
+|---|---|---|---|
+| `python3 /tmp/check_dictai_ios_five.py`; полный tracked/untracked diff; `git diff --check` | frontend / Python3, Ruby YAML, Git | Selected tasks, YAML, owners/status table, planned paths, links, protected hashes, новые text files | PASS; финальный проход после трёх reports: 9 existing changes (включая сторонний DS_Store), 46 new files |
+| `CI=true FLUTTER_SWIFT_PACKAGE_MANAGER=false flutter --no-version-check pub get --enforce-lockfile` | frontend / Flutter3.44.0, Dart3.12.0 | Exit65: locked matcher/meta/test_api не совпали с SDK pins; исходный lock сохранён | FAIL, blocker .02 |
+| Actual project analyze/test/build/launch | frontend | Package configuration не подготовлена, Simulator runtime отсутствует | NOT RUN; source checks не являются build PASS |
+| Изолированный `pub get` с копией исходного lock | Temporary candidate, путь сохранён в `/tmp/dictai-ios-lock-proposal-path.txt` / тот же SDK | Изменены matcher0.12.18→0.12.19, meta1.17.0→1.18.0, test_api0.7.9→0.7.11 и lock Flutterfloor3.35.6→3.41.3 (уже требование pubspec) | PASS только candidate resolution; не применён к проекту |
+| Candidate `build ios --simulator --debug --no-pub` с пользовательским HTTPS define | Изолированная копия текущих lib/test/ios/config и proposed lock | Pod install PASS138.1s, затем Xcode exit1: недоступен Simulator destination, iOS26.5 platform/runtime не установлен | FAIL; compile/link/launch не подтверждены |
+| Candidate `flutter --no-version-check test --no-pub --reporter expanded` | Только изолированная копия | Exit1, 550 PASS / 2 FAIL из552; Flutter3.44 ListTile assertion в существующем UploadModal, anonymous_flow/profile_free_flow | FAIL, main source не исправлялся; это вне .02 exact scope |
+| Candidate `flutter --no-version-check analyze --no-pub --no-fatal-infos` | Только изолированная копия | Exit0, 9 info, без errors/warnings | PASS только candidate; текущий repo не проверен analyze |
+| iPhone Keychain/auth/HTTPS, .04 navigation, .05 workspaces | Устройство/подпись не подготовлены; зависимости не прошли gates | Пользователь подтвердил отсутствие подписи | NOT RUN; .03–.05 blocked |
+
+Независимые [review .01](reviews/REVIEW-FE-002.01-02.md),
+[review .02](reviews/REVIEW-FE-002.02-01.md) и
+[review .03–.05 / учёта](reviews/REVIEW-FE-002.03-01.md) завершены
+reviewed/complete, открытых actionable findings нет. F01 P3 первого review
+исправлен и повторно проверен. Последующее закрытие review-учёта в карточках
+не меняет functional verification или blocked gates. Рабочий diff сохранён,
+HEAD и staging не менялись; commit/push/merge/release не выполнялись.
+
+Изолированный patch `/tmp/dictai-ios-lock-proposal.patch` не применён. Его
+resolution PASS не даёт права обновить lock и не устраняет runtime/signing или
+две найденные Flutter3.44 UI incompatibilities. Альтернатива: отдельный SDK
+Flutter3.41.3, чей tagged flutter_test manifest совпадает с исходными тремя pins;
+он не установлен и не проверен runtime. Изменение SDK/lock требует отдельного
+решения по AGENTS.md. Новые задачи/permissions/backend endpoints не создавались,
+CA/credentials/личные device identifiers в diff не включены.
+
 # iOS/iPhone: актуальное направление — 2026-11-16
 
 Последующее поручение пользователя «пуш» разрешает commit и push текущего

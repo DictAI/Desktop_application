@@ -29,3 +29,16 @@ abstract interface class AudioCapture {
   /// Forced lifecycle cleanup never uploads or deletes captured source files.
   Future<void> dispose();
 }
+
+/// Optional native state changes (interruptions or hardware failures).
+/// Desktop adapters and their fakes need not implement this capability.
+abstract interface class AudioCaptureEvents {
+  Stream<CaptureEvent> get captureEvents;
+}
+
+final class CaptureEvent {
+  const CaptureEvent(this.status, {this.message});
+
+  final CaptureStatus status;
+  final String? message;
+}

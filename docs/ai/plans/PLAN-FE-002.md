@@ -1,16 +1,147 @@
 ---
 id: "PLAN-FE-002"
 title: "DictAI для iOS/iPhone на существующем Flutter и batch API"
-status: "ready"
+status: "in_progress"
 owner: "primary-agent"
-selected_tasks: []
+selected_tasks: ["TASK-FE-002.01", "TASK-FE-002.02", "TASK-FE-002.03", "TASK-FE-002.04", "TASK-FE-002.05", "TASK-FE-002.06", "TASK-FE-002.07", "TASK-FE-002.08", "TASK-FE-002.10"]
 planning_authorized: true
-implementation_authorized: false
+implementation_authorized: true
 frontend_commit: "44ace4d"
 requirements_revision: "ios-2026-11-16"
 ---
 
 # PLAN-FE-002: DictAI для iOS/iPhone
+
+## Дополнение требований записи — 2026-11-17
+
+По прямому поручению пользователя добавлена
+[TASK-FE-002.20](../tasks/TASK-FE-002.20.md): повторный tap основной кнопки ставит
+запись на паузу, нажатие кнопки паузы возобновляет её. На паузе доступны зелёная
+«Отправить» и крестик с подтверждением удаления. Уход во время записи/паузы
+показывает экран «Остаться» / «Отменить запись и выйти»; без подтверждения запись
+сохраняется, при подтверждении удаляется только текущая локальная запись.
+
+Новая iOS-политика заменяет прежнее Stop/отправку при уходе из .08 после будущей
+реализации .20; старые checks/review .08 остаются evidence прежнего кода.
+Очередь: **.08 → .20 → .09 → .10**; зависимости остальных задач сохранены.
+.20 draft/unassigned, implementation_selected=false; список выбранных реализаций
+не меняется. Это planning-only поручение. ADR-FE-012 в decisions и
+[iOS UX](../research/IOS_TARGET_UX.ru.md) синхронизированы.
+
+Verification/Result этого planning diff (cwd frontend; Python3/Ruby Psych/Git):
+`python3 /tmp/check_dictai_record_controls_plan.py` и `git diff --check` — PASS,
+20 task YAML/IDs, dependency DAG/table/scope/planned paths/links и неизменный
+выбор реализаций согласованы. Полный incremental diff и новые документы прочитаны.
+Независимый [planning-review .20-01](../reviews/REVIEW-FE-002.20-01.md) выполняет
+`/root/record_controls_plan_review`; итоговые findings/completion хранятся в отчёте.
+Baseline355: изменены только6 назначенных docs, созданы task20/review20;
+остальные349 файлов и HEAD/staging сохранены. Runtime checks NOT RUN:
+это добавление требований, нового поведения приложения пока нет.
+
+
+## Итог интеграции выбранного блока — 2026-11-17
+
+Поручение «посмотри предыдущего агента и продолжи» продолжает только
+.04/.05/.06/.07/.08/.10. Их реализация интегрирована; sole writer после handoff —
+primary-agent; статус карточек review с явно открытыми physical criteria.
+Ни .09, ни .11–.19 не выбраны. Последующий текст хранит историю предыдущих решений.
+
+Полный повтор host tests **658 PASS**, changed/new Dart format **27/27 PASS**,
+`flutter analyze --no-fatal-infos` **PASS** (7 прежних info, 0 errors/warnings).
+Общий format lib/test — **FAIL** на 10 прежних файлах вне scope, без изменений.
+Production main Simulator build **PASS 12.3s**, install/launch/render **PASS**;
+обычное приложение восстановлено после native audio targets, прежняя public
+HTTPS config и sandbox/Keychain сохранены. Audio capture: два предыдущих native
+PASS, первый start FAIL остаётся известным ограничением; permission-denied phase
+теперь **PASS** по явному native marker, mic grant затем восстановлен.
+Методика/риски — [IOS_AUDIO](../../testing/IOS_AUDIO.ru.md).
+
+Независимые отчёты: [общий batch](../reviews/REVIEW-FE-002.04-02.md)
+и [native audio/Files](../reviews/REVIEW-FE-002.06-01.md). Первый самостоятельно
+повторил 87 tests, второй 83; актуальный итог review находится в самих отчётах.
+Оба review **reviewed/complete**, открытых actionable findings нет; F01 P3
+о неточном описании fixture исправлен и подтверждён reviewer.
+`python3 /tmp/check_dictai_ios_resume.py` — **PASS**: YAML/status/scope/table,
+219 локальных ссылок, whitespace, baseline342/353 и неизменность HEAD/staging.
+От resume изменены только 9 документов и 2 новых review reports; остальные
+344 файла, включая весь код/tests/dependencies/платформы и .DS_Store, сохранены.
+`plutil -lint ios/Runner/Info.plist ios/Runner.xcodeproj/project.pbxproj` — **PASS**.
+Авторский intermediate profile-free integration FAIL устранён ожиданием
+async WAV copy в fixture и возвратом прежнего desktop toggle в .08; выбор option
+и assertions сохранены, общий PASS658.
+
+Все команды/cwd/environment/limits записаны в интеграционных разделах карточек.
+Physical iPhone checks **NOT RUN**: подпись/устройство не подготовлены; .03 остаётся
+blocked, .06/.07/.08 не verified и suspend/relaunch recovery .09 не реализуется.
+Полный iPhone E2E/production readiness не заявлены. Commit/push/release/accepted
+не выполнялись. Ниже — исторические результаты, не новые разрешения.
+
+
+## Параллельное исполнение выбранного блока — 2026-11-16
+
+Новое поручение пользователя выбирает .04/.05/.06/.07/.08/.10 и до 10 агентов.
+.04 — login UI поверх готового navbar; .08/.10 — мобильный UI и текущие flows,
+без автоматической реализации .09. Exact disjoint scopes/owners закреплены
+в active-plan и карточках, shared native/notifier пишет один audio owner.
+ADR-FE-011 разрешает параллельную разработку выбранного scope с сохранением
+интеграционных и physical проверок; прежние последовательные write gates ниже
+описывают историю. .03 остаётся blocked по physical; .09 и .11–.19 не выбраны.
+Root интегрирует, проверяет весь diff, строит/устанавливает/запускает Simulator;
+затем независимые .04-02/.06-01 review. Status accepted не назначается.
+
+## Текущий выбранный scope — 2026-11-16
+
+Новое поручение пользователя отдельно выбирает responsive shell .04: на
+iOS нижний навбар вместо левой панели при любой ширине, доступный logout,
+Back вложенных маршрутов и safe areas. Узкие desktop окна также используют
+нижнюю панель; широкий desktop сохраняет sidebar.
+Owner primary-agent, exact write scope в active-plan. Login layout и внутренние
+экраны не включены в этот UI проход. Physical criteria .03 сохраняются для
+полной readiness; они не препятствуют прямо выбранному изменению оболочки.
+Ни .03, ни полная .04/.05 не объявляются завершёнными. Выбранная оболочка
+реализована: 33 targeted tests PASS, simulator build PASS,
+analyze --no-fatal-infos PASS (7 прежних info вне scope). Независимый
+[REVIEW-FE-002.04-01](../reviews/REVIEW-FE-002.04-01.md) завершён без findings;
+reviewer повторил 33 tests, format и doc/preservation checks. Статус .04 review означает передачу частичного UI scope,
+не снятие остальных критериев и dependency gate .05. Ниже — предыдущий итог.
+
+
+Актуальный результат: .01/.02 прошли checks и независимый review. На установленном
+iPhone17 Pro Simulator/iOS26.5 собран и запущен Runner с Flutter3.41.3.
+.03 реализовала explicit Keychain policy и retained-key logout fix; targeted60,
+full561 tests, analyze (9 прежних info) и9native Keychain/HTTPS/auth phases PASS.
+Тестовый аккаунт создан по разрешению пользователя. Full independent .03-02
+завершён: F01 P3 исправлен, открытых findings нет. .03 status blocked на обязательных physical checks без подписи;
+.04/.05 не открываются. Реализатор .03 после handoff — primary-agent.
+Ниже сохранена история предыдущих проходов, где runtime ещё отсутствовал.
+
+Последующее решение пользователя разрешило отдельный Flutter3.41.3. .02
+проверена primary-agent в своём exact scope: enforced pub PASS, 552 tests PASS,
+analyze PASS (9info), pubspec/lock сохранены. Actual CocoaPods создал native lock
+и штатную project/workspace integration. Flutter build FAIL из-за отсутствующего
+Simulator destination/runtime, поэтому .02 остаётся blocked. Независимый повторный
+review REVIEW-FE-002.02-02 завершён без открытых findings. .03–.05 gates и
+физическая подпись не отменены.
+Последующий текст содержит предыдущий snapshot Flutter3.44, отдельно от текущего.
+
+
+Последующее поручение: пять агентов для пяти ближайших iOS-задач по принятому
+flow. Выбраны .01–.05; .06–.19 не выбраны. Владельцы и последовательная передача
+exact scopes зафиксированы в active-plan. Следующий этап допускается только
+после обязательных checks и независимого review зависимости. Недоступные
+внешние проверки фиксируются как blockers, без автоматического обхода gates.
+Публикация и accepted этим поручением не разрешены. Ниже сохранён planning
+baseline; прежние формулировки «реализация не выбрана» описывают тот этап.
+
+Текущее исполнение: .01 прошла checks и независимый review .01-02; .02 имеет
+Runner scaffold, но blocked из-за несовместимого SDK/lock и отсутствующего
+Simulator runtime; .03–.05 blocked по обязательным зависимостям и device signing.
+Пять исполнителей завершили preflight; пять функциональных этапов не объявлены
+выполненными. Candidate с тремя изменёнными SDK-pinned dependencies проверен только
+в изолированной копии: resolution PASS, analyze PASS (9 info), tests FAIL
+(550/552), simulator build FAIL (нет destination/runtime). Исходный lock сохранён.
+Подробные команды/границы — в active-plan и IOS_BASELINE, все изменения SDK/lock
+и выход за exact scope ожидают отдельного решения, accepted не назначен.
 
 ## Goal
 
@@ -52,14 +183,16 @@ smoke относятся к прежнему diff: iOS build, запись, File
 
 Первый порт выполняется по одной задаче за раз, чтобы shared router/providers,
 Runner/Info.plist, capture/notifier и result detail имели одного writer. Поэтому
-очередь .01 → .02 → … → .19 содержит и функциональные, и интеграционные зависимости.
+очередь .01 → … → .08 → .20 → .09 → … → .19 содержит функциональные
+и интеграционные зависимости. Позднее добавленная .20 сохраняет свой ID.
 Граф не означает выбор реализации. Переход внутри выбранной очереди требует
 checks и внутреннего независимого review без блокирующих findings; accepted
 остаётся явной приёмкой пользователя, без промежуточных запросов review.
 
 ```text
 .01 baseline → .02 Runner → .03 Keychain/HTTPS → .04 navigation → .05 workspaces
-→ .06 iOS audio → .07 Files import → .08 Record → .09 lifecycle/upload recovery
+→ .06 iOS audio → .07 Files import → .08 Record → .20 pause/send/discard
+→ .09 lifecycle/upload recovery
 → .10 Results → .11 detail → .12 transcript → .13 player → .14 export
 → .15 ready notice → .16 cleanup → .17 regression → .18 iPhone E2E → .19 candidate
 ```
@@ -71,16 +204,17 @@ Owner unassigned относится к будущей реализации; plan
 
 | ID | Title | Status | Dependencies | Owner | Write scope |
 |---|---|---|---|---|---|
-| [TASK-FE-002.01](../tasks/TASK-FE-002.01.md) | Зафиксировать iOS toolchain, deployment target и manifest Runner | ready | none | unassigned | Exact paths в карточке |
-| [TASK-FE-002.02](../tasks/TASK-FE-002.02.md) | Добавить iOS Runner и воспроизводимую simulator-сборку | draft | TASK-FE-002.01 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.03](../tasks/TASK-FE-002.03.md) | Подтвердить iOS Keychain, авторизацию и HTTPS | draft | TASK-FE-002.02 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.04](../tasks/TASK-FE-002.04.md) | Сделать мобильную навигацию и экран входа | draft | TASK-FE-002.03 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.05](../tasks/TASK-FE-002.05.md) | Адаптировать workspaces и контакты для iPhone | draft | TASK-FE-002.04 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.06](../tasks/TASK-FE-002.06.md) | Добавить iOS микрофон, background recording и audio interruptions | draft | TASK-FE-002.05 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.07](../tasks/TASK-FE-002.07.md) | Импортировать WAV из Files в sandbox приложения | draft | TASK-FE-002.06 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.08](../tasks/TASK-FE-002.08.md) | Собрать мобильный экран записи и безопасный Stop/уход | draft | TASK-FE-002.07 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.09](../tasks/TASK-FE-002.09.md) | Адаптировать upload и восстановление к iOS suspend/resume | draft | TASK-FE-002.08 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.10](../tasks/TASK-FE-002.10.md) | Адаптировать библиотеку результатов и восстановление отправок | draft | TASK-FE-002.09 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.01](../tasks/TASK-FE-002.01.md) | Зафиксировать iOS toolchain, deployment target и manifest Runner | review | none | /root/ios_baseline | Exact paths в карточке |
+| [TASK-FE-002.02](../tasks/TASK-FE-002.02.md) | Добавить iOS Runner и воспроизводимую simulator-сборку | review | TASK-FE-002.01 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.03](../tasks/TASK-FE-002.03.md) | Подтвердить iOS Keychain, авторизацию и HTTPS | blocked | TASK-FE-002.02 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.04](../tasks/TASK-FE-002.04.md) | Сделать мобильную навигацию и экран входа | review | TASK-FE-002.03 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.05](../tasks/TASK-FE-002.05.md) | Адаптировать workspaces и контакты для iPhone | review | TASK-FE-002.04 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.06](../tasks/TASK-FE-002.06.md) | Добавить iOS микрофон, background recording и audio interruptions | review | TASK-FE-002.05 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.07](../tasks/TASK-FE-002.07.md) | Импортировать WAV из Files в sandbox приложения | review | TASK-FE-002.06 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.08](../tasks/TASK-FE-002.08.md) | Собрать мобильный экран записи и безопасный Stop/уход | review | TASK-FE-002.07 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.20](../tasks/TASK-FE-002.20.md) | Изменить управление записью: пауза, отправка и подтверждённая отмена | draft | TASK-FE-002.08 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.09](../tasks/TASK-FE-002.09.md) | Адаптировать upload и восстановление к iOS suspend/resume | draft | TASK-FE-002.20 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.10](../tasks/TASK-FE-002.10.md) | Адаптировать библиотеку результатов и восстановление отправок | review | TASK-FE-002.09 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.11](../tasks/TASK-FE-002.11.md) | Добавить единый мобильный экран результата | draft | TASK-FE-002.10 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.12](../tasks/TASK-FE-002.12.md) | Показать большой транскрипт с говорящими и таймкодами | draft | TASK-FE-002.11 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | draft | TASK-FE-002.12 | unassigned | Exact paths в карточке |
@@ -151,7 +285,7 @@ validation проверяются отдельно, без автоматиче�
 
 ## Completion
 
-Приложение готово после выполнения выбранных .01–.19 с реальными gates и
+Приложение готово после выполнения выбранных .01–.19 и новой .20 с реальными gates и
 внутренним независимым review; приёмка остаётся за пользователем. Готовый план
 не означает готовое приложение и не разрешает commit/push/release. Текущее поручение меняет документы; переход к реализации требует
 выбора новых задач пользователем.

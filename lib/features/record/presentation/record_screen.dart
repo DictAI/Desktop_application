@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:record/record.dart';
+import 'package:record/record.dart' show InputDevice;
 import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
 import '../../workspace/presentation/workspaces_screen.dart';
@@ -19,13 +21,58 @@ class RecordScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
+  final _elapsed = Stopwatch();
+  Timer? _elapsedRefresh;
+  ProviderSubscription<RecordState>? _recordingSubscription;
+
   @override
   void initState() {
     super.initState();
     _scheduleWorkspaceContext();
+    _recordingSubscription = ref.listenManual<RecordState>(
+      recordNotifierProvider,
+      _syncElapsed,
+      fireImmediately: true,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(recordNotifierProvider.notifier).refreshDevices();
+      if (mounted && Theme.of(context).platform != TargetPlatform.iOS) {
+        ref.read(recordNotifierProvider.notifier).refreshDevices();
+      }
     });
+  }
+
+  void _syncElapsed(RecordState? previous, RecordState next) {
+    if (next.status == RecordStatus.starting &&
+        previous?.status != RecordStatus.starting) {
+      _elapsed.reset();
+    }
+    if (next.status == RecordStatus.recording) {
+      _elapsed.start();
+      _elapsedRefresh ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      _elapsed.stop();
+      _elapsedRefresh?.cancel();
+      _elapsedRefresh = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _recordingSubscription?.close();
+    _elapsedRefresh?.cancel();
+    _elapsed.stop();
+    super.dispose();
+  }
+
+  String get _elapsedLabel {
+    final seconds = _elapsed.elapsed.inSeconds;
+    final minutes = (seconds ~/ 60 % 60).toString().padLeft(2, '0');
+    final remainder = (seconds % 60).toString().padLeft(2, '0');
+    return seconds < 3600
+        ? '$minutes:$remainder'
+        : '${seconds ~/ 3600}:$minutes:$remainder';
   }
 
   @override
@@ -76,114 +123,155 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     final canRecord =
         !locked && (state.anonymous || state.selectedWorkspaceId != null);
 
+    final ios = Theme.of(context).platform == TargetPlatform.iOS;
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 40),
+      padding: EdgeInsets.symmetric(
+        horizontal: narrow || ios ? 16 : 0,
+        vertical: narrow || ios ? 20 : 40,
+      ),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IgnorePointer(
-              ignoring: locked,
-              child: _AnonymousToggle(
-                value: state.anonymous,
-                onChanged: notifier.setAnonymous,
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            _RecordButton(
-              status: state.status,
-              anonymous: state.anonymous,
-              onTap: state.isActive
-                  ? () =>
-                        ref.read(recordExitGuardProvider).confirmFinish(context)
-                  : canRecord
-                  ? notifier.startRecording
-                  : null,
-              onPause: state.isActive && notifier.supportsPause
-                  ? () => notifier.togglePause()
-                  : null,
-            ),
-            const SizedBox(height: 32),
-
-            _RecordStatusWidget(status: state.status),
-            const SizedBox(height: 32),
-
-            IgnorePointer(
-              ignoring: locked,
-              child: _DeviceSelector(
-                devices: state.inputDevices,
-                selected: state.selectedDevice,
-                onSelect: notifier.selectDevice,
-                onRefresh: notifier.refreshDevices,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            IgnorePointer(
-              ignoring: locked,
-              child: _SystemAudioCheckbox(
-                value: state.captureSystemAudio,
-                onChanged: notifier.setCaptureSystemAudio,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            AnimatedOpacity(
-              opacity: state.anonymous ? 0.3 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: IgnorePointer(
-                ignoring: state.anonymous || locked,
-                child: _WorkspaceSelector(
-                  selectedName: state.selectedWorkspaceName,
-                  onSelect: notifier.selectWorkspace,
-                  onClear: notifier.clearWorkspace,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IgnorePointer(
+                ignoring: locked,
+                child: _AnonymousToggle(
+                  value: state.anonymous,
+                  onChanged: notifier.setAnonymous,
                 ),
               ),
-            ),
+              const SizedBox(height: 28),
 
-            const SizedBox(height: 12),
-            SizedBox(
-              width: 360,
-              child: UploadLanguageControls(
-                language: state.language,
-                mixed: state.mixed,
-                onLanguage: locked ? null : notifier.setLanguage,
-                onMixed: locked ? null : notifier.setMixed,
+              _RecordButton(
+                status: state.status,
+                anonymous: state.anonymous,
+                onTap: state.isActive
+                    ? () => ref
+                          .read(recordExitGuardProvider)
+                          .confirmFinish(context)
+                    : canRecord
+                    ? notifier.startRecording
+                    : null,
+                onPause: state.isActive && notifier.supportsPause
+                    ? () => notifier.togglePause()
+                    : null,
               ),
-            ),
+              const SizedBox(height: 32),
 
-            const SizedBox(height: 32),
+              if (state.isActive) ...[
+                Semantics(
+                  label: 'Время активной записи',
+                  value: _elapsedLabel,
+                  child: ExcludeSemantics(
+                    child: Text(
+                      _elapsedLabel,
+                      key: const Key('record-elapsed'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 28,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              _RecordStatusWidget(status: state.status),
+              if (state.isActive && state.errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Semantics(
+                  liveRegion: true,
+                  child: _ErrorBanner(
+                    message: state.errorMessage!,
+                    onDismiss: notifier.reset,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
 
-            if (state.anonymous || state.selectedWorkspaceId != null)
-              _UploadAudioButton(
-                onTap: locked ? null : () => _showUploadModal(context),
-                isUploading: state.status == RecordStatus.uploading,
+              if (!ios) ...[
+                IgnorePointer(
+                  ignoring: locked,
+                  child: _DeviceSelector(
+                    devices: state.inputDevices,
+                    selected: state.selectedDevice,
+                    onSelect: notifier.selectDevice,
+                    onRefresh: notifier.refreshDevices,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                IgnorePointer(
+                  ignoring: locked,
+                  child: _SystemAudioCheckbox(
+                    value: state.captureSystemAudio,
+                    onChanged: notifier.setCaptureSystemAudio,
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              AnimatedOpacity(
+                opacity: state.anonymous ? 0.3 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: state.anonymous || locked,
+                  child: _WorkspaceSelector(
+                    selectedName: state.selectedWorkspaceName,
+                    onSelect: notifier.selectWorkspace,
+                    onClear: notifier.clearWorkspace,
+                  ),
+                ),
               ),
 
-            if (state.status == RecordStatus.uploading) ...[
-              const SizedBox(height: 20),
-              _UploadProgressBar(progress: state.uploadProgress),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 360,
+                child: UploadLanguageControls(
+                  language: state.language,
+                  mixed: state.mixed,
+                  onLanguage: locked ? null : notifier.setLanguage,
+                  onMixed: locked ? null : notifier.setMixed,
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              if (state.anonymous || state.selectedWorkspaceId != null)
+                _UploadAudioButton(
+                  onTap: locked ? null : () => _showUploadModal(context),
+                  isUploading: state.status == RecordStatus.uploading,
+                ),
+
+              if (state.status == RecordStatus.uploading) ...[
+                const SizedBox(height: 20),
+                _UploadProgressBar(progress: state.uploadProgress),
+              ],
+
+              if (state.status == RecordStatus.accepted) ...[
+                const SizedBox(height: 20),
+                _UploadSuccess(onReset: notifier.reset),
+              ],
+              if (state.canRetryUpload)
+                TextButton(
+                  onPressed: locked ? null : notifier.retryUpload,
+                  child: const Text('Повторить сохранённую отправку'),
+                ),
+
+              if (!state.isActive && state.errorMessage != null) ...[
+                const SizedBox(height: 20),
+                _ErrorBanner(
+                  message: state.errorMessage!,
+                  onDismiss: notifier.reset,
+                ),
+              ],
             ],
-
-            if (state.status == RecordStatus.accepted) ...[
-              const SizedBox(height: 20),
-              _UploadSuccess(onReset: notifier.reset),
-            ],
-            if (state.canRetryUpload)
-              TextButton(
-                onPressed: locked ? null : notifier.retryUpload,
-                child: const Text('Повторить сохранённую отправку'),
-              ),
-
-            if (state.errorMessage != null) ...[
-              const SizedBox(height: 20),
-              _ErrorBanner(
-                message: state.errorMessage!,
-                onDismiss: notifier.reset,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -208,6 +296,17 @@ class _AnonymousToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return SwitchListTile.adaptive(
+        value: value,
+        onChanged: onChanged,
+        title: const Text('Без рабочего пространства'),
+        subtitle: const Text('Запись и результаты видны только вам'),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        tileColor: value ? AppColors.accentSubtle : AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      );
+    }
     return SizedBox(
       width: 360,
       child: GestureDetector(
@@ -360,87 +459,75 @@ class _RecordButtonState extends State<_RecordButton>
 
     return Column(
       children: [
-        GestureDetector(
-          onTap: widget.onTap,
-          child: SizedBox(
-            width: 240,
-            height: 240,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (isRecording)
-                  AnimatedBuilder(
-                    animation: _pingController,
-                    builder: (_, __) => Container(
-                      width: 192 + _pingController.value * 40,
-                      height: 192 + _pingController.value * 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.error.withValues(
-                            alpha: 0.4 * (1 - _pingController.value),
+        Semantics(
+          button: true,
+          enabled: widget.onTap != null,
+          label: isActive ? 'Завершить запись' : 'Начать запись',
+          child: InkResponse(
+            onTap: widget.onTap,
+            radius: 120,
+            child: SizedBox(
+              width: 240,
+              height: 240,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (isRecording)
+                    AnimatedBuilder(
+                      animation: _pingController,
+                      builder: (_, __) => Container(
+                        width: 192 + _pingController.value * 40,
+                        height: 192 + _pingController.value * 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.error.withValues(
+                              alpha: 0.4 * (1 - _pingController.value),
+                            ),
+                            width: 2,
                           ),
-                          width: 2,
                         ),
                       ),
                     ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    width: 192,
+                    height: 192,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.5),
+                          blurRadius: 60,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      isActive ? Icons.stop_rounded : Icons.mic_rounded,
+                      size: 80,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  width: 192,
-                  height: 192,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color,
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.5),
-                        blurRadius: 60,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isActive ? Icons.stop_rounded : Icons.mic_rounded,
-                    size: 80,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
         // Кнопка паузы — только когда идёт запись или на паузе
         if (isActive && widget.onPause != null) ...[
           const SizedBox(height: 16),
-          GestureDetector(
-            onTap: widget.onPause,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.surfaceElevated),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                    color: AppColors.textPrimary,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isPaused ? 'Resume' : 'Pause',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+          OutlinedButton.icon(
+            onPressed: widget.onPause,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              foregroundColor: AppColors.textPrimary,
             ),
+            icon: Icon(
+              isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+            ),
+            label: Text(isPaused ? 'Resume' : 'Pause'),
           ),
         ],
       ],
@@ -473,6 +560,7 @@ class _RecordStatusWidget extends StatelessWidget {
       children: [
         Text(
           label,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 22,
@@ -483,6 +571,7 @@ class _RecordStatusWidget extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             sub,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 14,
@@ -762,6 +851,12 @@ class _WorkspaceSelector extends ConsumerWidget {
                   onClear: onClear,
                 ),
               ),
+              if (selectedName != null)
+                IconButton(
+                  tooltip: 'Снять выбор рабочего пространства',
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close_rounded),
+                ),
               const SizedBox(width: 10),
               _IconSquareButton(
                 icon: Icons.add_rounded,
@@ -801,37 +896,44 @@ class _WorkspaceDropdownState extends ConsumerState<_WorkspaceDropdown> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GestureDetector(
-          onTap: () => setState(() => _open = !_open),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.surfaceElevated),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.selectedName ?? 'Not selected',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+        Semantics(
+          button: true,
+          expanded: _open,
+          label: 'Выбрать рабочее пространство',
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.surfaceElevated),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.selectedName ?? 'Not selected',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-                AnimatedRotation(
-                  turns: _open ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: AppColors.textSecondary,
-                    size: 20,
+                  AnimatedRotation(
+                    turns: _open ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -937,21 +1039,12 @@ class _IconSquareButton extends StatelessWidget {
   const _IconSquareButton({required this.icon, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceElevated),
-        ),
-        child: Icon(icon, color: AppColors.textPrimary, size: 20),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => IconButton.filledTonal(
+    onPressed: onTap,
+    tooltip: 'Создать рабочее пространство',
+    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    icon: Icon(icon),
+  );
 }
 
 // Кнопка загрузки файла
@@ -963,37 +1056,15 @@ class _UploadAudioButton extends StatelessWidget {
   const _UploadAudioButton({required this.onTap, required this.isUploading});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: isUploading ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.surfaceElevated),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.upload_rounded,
-              color: AppColors.textPrimary,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              isUploading ? 'Uploading...' : 'Upload Audio',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: isUploading ? null : onTap,
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size(48, 48),
+      foregroundColor: AppColors.textPrimary,
+    ),
+    icon: const Icon(Icons.upload_rounded),
+    label: Text(isUploading ? 'Uploading...' : 'Upload Audio'),
+  );
 }
 
 // Прогресс-бар загрузки
@@ -1064,9 +1135,10 @@ class _UploadSuccess extends StatelessWidget {
               style: TextStyle(color: AppColors.success, fontSize: 13),
             ),
           ),
-          GestureDetector(
-            onTap: onReset,
-            child: const Icon(
+          IconButton(
+            onPressed: onReset,
+            tooltip: 'Закрыть сообщение об отправке',
+            icon: const Icon(
               Icons.close_rounded,
               color: AppColors.success,
               size: 18,
@@ -1110,9 +1182,10 @@ class _ErrorBanner extends StatelessWidget {
               style: const TextStyle(color: AppColors.error, fontSize: 13),
             ),
           ),
-          GestureDetector(
-            onTap: onDismiss,
-            child: const Icon(
+          IconButton(
+            onPressed: onDismiss,
+            tooltip: 'Закрыть ошибку',
+            icon: const Icon(
               Icons.close_rounded,
               color: AppColors.error,
               size: 18,

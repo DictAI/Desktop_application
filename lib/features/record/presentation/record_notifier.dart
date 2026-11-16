@@ -12,6 +12,7 @@ import '../data/audio_capture.dart';
 import '../data/dto/upload_accepted_dto.dart';
 import '../data/dto/upload_options.dart';
 import '../data/linux_audio_capture.dart';
+import '../data/ios_audio_capture.dart';
 import '../data/macos_audio_capture.dart';
 import '../data/microphone_capture.dart';
 
@@ -110,11 +111,19 @@ typedef RecordCaptureFactory = AudioCapture Function(bool captureSystemAudio);
 
 final recordCaptureFactoryProvider = Provider<RecordCaptureFactory>(
   (ref) => (system) {
+    if (Platform.isIOS) {
+      if (system) {
+        throw const ValidationException(
+          'На iPhone доступна только запись микрофона.',
+        );
+      }
+      return IosAudioCapture();
+    }
     if (Platform.isLinux) return LinuxAudioCapture(captureSystemAudio: system);
     if (Platform.isMacOS) {
       return system ? MacosAudioCapture() : MicrophoneCapture();
     }
-    throw const ValidationException('Запись доступна в macOS и Linux.');
+    throw const ValidationException('Запись недоступна на этой платформе.');
   },
 );
 
@@ -130,6 +139,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
   final Future<BatchSession> Function() _openSession;
   final _random = Random.secure();
   AudioCapture? _capture;
+  StreamSubscription<CaptureEvent>? _captureEvents;
   Future<void>? _releasing;
   UploadOptions? _recordingOptions;
   BatchSession? _session;
@@ -305,10 +315,48 @@ class RecordNotifier extends StateNotifier<RecordState> {
       if (!_currentSession(generation, session)) return;
       final capture = _captureFactory(system);
       _capture = capture;
+      _recordingOptions = options;
+      if (capture is AudioCaptureEvents) {
+        _captureEvents = (capture as AudioCaptureEvents).captureEvents.listen((
+          event,
+        ) {
+          if (!_current(generation) || !identical(_capture, capture)) return;
+          if (event.status == CaptureStatus.failed) {
+            _fail(
+              generation,
+              ServerException(
+                event.message ?? 'Запись прервана. Доступный WAV сохранён.',
+              ),
+            );
+            unawaited(_cleanupCapture());
+          } else if (event.status == CaptureStatus.recording ||
+              event.status == CaptureStatus.paused) {
+            if (state.status != RecordStatus.starting && !state.isActive) {
+              return;
+            }
+            state = state.copyWith(
+              status: event.status == CaptureStatus.paused
+                  ? RecordStatus.paused
+                  : RecordStatus.recording,
+              errorMessage: event.message,
+              clearError: event.message == null,
+            );
+          }
+        });
+      }
       await capture.start(device: device);
       if (!_currentSession(generation, session)) return;
-      _recordingOptions = options;
-      state = state.copyWith(status: RecordStatus.recording);
+      if (capture.status != CaptureStatus.recording &&
+          capture.status != CaptureStatus.paused) {
+        throw const ServerException(
+          'Микрофон остановлен. Доступный WAV сохранён.',
+        );
+      }
+      state = state.copyWith(
+        status: capture.status == CaptureStatus.paused
+            ? RecordStatus.paused
+            : RecordStatus.recording,
+      );
     } on AppException catch (error) {
       if (!_current(generation)) return;
       await _cleanupCapture();
@@ -337,12 +385,29 @@ class RecordNotifier extends StateNotifier<RecordState> {
         await capture.pause();
       }
       if (_current(generation)) {
+        if (!identical(_capture, capture) ||
+            (capture.status != CaptureStatus.recording &&
+                capture.status != CaptureStatus.paused)) {
+          throw const ServerException(
+            'Микрофон остановлен. Доступный WAV сохранён.',
+          );
+        }
         state = state.copyWith(
-          status: resuming ? RecordStatus.recording : RecordStatus.paused,
+          status: capture.status == CaptureStatus.paused
+              ? RecordStatus.paused
+              : RecordStatus.recording,
+          clearError: capture.status == CaptureStatus.recording,
         );
       }
     } on AppException catch (error) {
       if (!_current(generation)) return;
+      if (capture.status == CaptureStatus.paused) {
+        state = state.copyWith(
+          status: RecordStatus.paused,
+          errorMessage: error.message,
+        );
+        return;
+      }
       await _cleanupCapture();
       _fail(generation, error);
     } finally {
@@ -519,11 +584,16 @@ class RecordNotifier extends StateNotifier<RecordState> {
   Future<void> _releaseCapture() {
     final capture = _capture;
     if (capture == null) return Future.value();
-    return _releasing ??= Future<void>.sync(capture.dispose)
-        .then((_) {
-          if (identical(_capture, capture)) _capture = null;
-        })
-        .whenComplete(() => _releasing = null);
+    return _releasing ??=
+        Future<void>.sync(() async {
+              await _captureEvents?.cancel();
+              _captureEvents = null;
+              await capture.dispose();
+            })
+            .then((_) {
+              if (identical(_capture, capture)) _capture = null;
+            })
+            .whenComplete(() => _releasing = null);
   }
 
   Future<void> _cleanupCapture() async {

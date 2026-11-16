@@ -44,10 +44,13 @@ class _Library extends ConsumerStatefulWidget {
   ConsumerState<_Library> createState() => _LibraryState();
 }
 
-class _LibraryState extends ConsumerState<_Library> {
+class _LibraryState extends ConsumerState<_Library>
+    with WidgetsBindingObserver {
+  bool _wasAway = false;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.session.isCurrent) {
         ref
@@ -55,6 +58,28 @@ class _LibraryState extends ConsumerState<_Library> {
             .openLibrary();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _wasAway = true;
+      return;
+    }
+    if (!_wasAway) return;
+    _wasAway = false;
+    if (mounted && widget.session.isCurrent) {
+      final provider = resultsNotifierProvider(widget.session);
+      if (!ref.read(provider).page.isLoading) {
+        ref.read(provider.notifier).refresh();
+      }
+    }
   }
 
   @override
@@ -86,163 +111,176 @@ class _LibraryState extends ConsumerState<_Library> {
         }).toList() ??
         const <PendingUpload>[];
 
-    return Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Results',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Обновить результаты',
-                onPressed: state.page.isLoading ? null : notifier.refresh,
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-            ],
-          ),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.date_range_outlined),
-                label: Text(
-                  dates == null
-                      ? 'Выбрать период'
-                      : '${_date(dates.start)} — ${_date(dates.end)}',
-                ),
-                onPressed: () => _chooseDates(context, notifier, state.dates),
-              ),
-              if (state.dates != null)
-                TextButton(
-                  onPressed: () => notifier.setDates(null),
-                  child: const Text('Сбросить период'),
-                ),
-              TextButton.icon(
-                onPressed: () => context.go('/record'),
-                icon: const Icon(Icons.mic_none_rounded),
-                label: const Text('Новая запись'),
-              ),
-            ],
-          ),
-          if (state.actionMessage case final message?)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                message,
-                style: TextStyle(
-                  color: state.actionFailed ? AppColors.error : null,
-                ),
-              ),
-              trailing: IconButton(
-                tooltip: 'Закрыть сообщение',
-                onPressed: notifier.clearAction,
-                icon: const Icon(Icons.close),
-              ),
-            ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              children: [
-                if (state.uploads.hasError)
-                  _Message(
-                    text: _safeMessage(
-                      state.uploads.error,
-                      'Не удалось прочитать сохранённые отправки.',
-                    ),
-                    onRetry: notifier.refresh,
-                  ),
-                if ((uploads?.damagedEntries ?? 0) > 0)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Некоторые сохранённые отправки повреждены и недоступны для восстановления.',
-                    ),
-                  ),
-                if (local.isNotEmpty) ...[
-                  const Text('Сохранённые отправки с этого устройства'),
-                  const SizedBox(height: 8),
-                  for (final entry in local)
-                    _UploadCard(
-                      entry: entry,
-                      sending: state.sending.contains(entry.localId),
-                      blockedReason: state.blockedReplays[entry.localId],
-                      replay: () => notifier.replay(entry.localId),
-                      progress: entry.accepted == null
-                          ? null
-                          : jobs[(
-                              audioId: entry.accepted!.audioId,
-                              jobId: entry.accepted!.jobId,
-                            )],
-                      onOpen: onOpen,
-                    ),
-                  const SizedBox(height: 16),
-                ],
-                if (state.page.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (state.page.hasError)
-                  _Message(
-                    text: _safeMessage(
-                      state.page.error,
-                      'Не удалось загрузить результаты.',
-                    ),
-                    onRetry: notifier.refresh,
-                  )
-                else if (rows.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Text(
-                      state.dates == null
-                          ? 'Результатов пока нет.'
-                          : 'За выбранный период результатов нет.',
-                    ),
-                  )
-                else
-                  for (final row in rows)
-                    _ResultCard(
-                      result: row,
-                      progress:
-                          jobs[(audioId: row.audioId, jobId: row.resultId)],
-                      deleting: state.deleting.contains(row.audioId),
-                      onDelete: () => notifier.delete(row.audioId),
-                      onOpen: onOpen,
-                    ),
-              ],
-            ),
-          ),
-          if (page != null && page.pagination.totalPages > 1)
+    return LayoutBuilder(
+      builder: (context, constraints) => RefreshIndicator(
+        onRefresh: notifier.refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(constraints.maxWidth < 600 ? 16 : 28),
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(
-                  tooltip: 'Предыдущая страница',
-                  onPressed: state.pageNumber > 1
-                      ? () => notifier.goToPage(state.pageNumber - 1)
-                      : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text(
-                  'Страница ${state.pageNumber} из ${page.pagination.totalPages}',
+                Expanded(
+                  child: Text(
+                    'Results',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                 ),
                 IconButton(
-                  tooltip: 'Следующая страница',
-                  onPressed: state.pageNumber < page.pagination.totalPages
-                      ? () => notifier.goToPage(state.pageNumber + 1)
-                      : null,
-                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Обновить результаты',
+                  onPressed: state.page.isLoading ? null : notifier.refresh,
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
               ],
             ),
-        ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.date_range_outlined),
+                  label: Text(
+                    dates == null
+                        ? 'Выбрать период'
+                        : '${_date(dates.start)} — ${_date(dates.end)}',
+                    textAlign: TextAlign.center,
+                  ),
+                  onPressed: () => _chooseDates(context, notifier, dates),
+                ),
+                if (dates != null)
+                  TextButton(
+                    onPressed: () => notifier.setDates(null),
+                    child: const Text('Сбросить период'),
+                  ),
+                TextButton.icon(
+                  onPressed: () => context.go('/record'),
+                  icon: const Icon(Icons.mic_none_rounded),
+                  label: const Text('Новая запись'),
+                ),
+              ],
+            ),
+            if (state.actionMessage case final message?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          color: state.actionFailed ? AppColors.error : null,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Закрыть сообщение',
+                      onPressed: notifier.clearAction,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+            if (state.uploads.hasError)
+              _Message(
+                text: _safeMessage(
+                  state.uploads.error,
+                  'Не удалось прочитать сохранённые отправки.',
+                ),
+                onRetry: notifier.refresh,
+              ),
+            if ((uploads?.damagedEntries ?? 0) > 0)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Некоторые сохранённые отправки повреждены и недоступны для восстановления.',
+                ),
+              ),
+            if (local.isNotEmpty) ...[
+              const Text('Сохранённые отправки с этого устройства'),
+              const SizedBox(height: 8),
+              for (final entry in local)
+                _UploadCard(
+                  entry: entry,
+                  sending: state.sending.contains(entry.localId),
+                  blockedReason: state.blockedReplays[entry.localId],
+                  replay: () => notifier.replay(entry.localId),
+                  progress: entry.accepted == null
+                      ? null
+                      : jobs[(
+                          audioId: entry.accepted!.audioId,
+                          jobId: entry.accepted!.jobId,
+                        )],
+                  onOpen: onOpen,
+                ),
+              const SizedBox(height: 16),
+            ],
+            if (state.page.isLoading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (state.page.hasError)
+              _Message(
+                text: _safeMessage(
+                  state.page.error,
+                  'Не удалось загрузить результаты.',
+                ),
+                onRetry: notifier.refresh,
+              )
+            else if (rows.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Text(
+                  dates == null
+                      ? 'Результатов пока нет.'
+                      : 'За выбранный период результатов нет.',
+                ),
+              )
+            else
+              for (final row in rows)
+                _ResultCard(
+                  result: row,
+                  progress: jobs[(audioId: row.audioId, jobId: row.resultId)],
+                  deleting: state.deleting.contains(row.audioId),
+                  onDelete: () => notifier.delete(row.audioId),
+                  onOpen: onOpen,
+                ),
+            if (page != null && page.pagination.totalPages > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Предыдущая страница',
+                      onPressed: state.pageNumber > 1 && !state.page.isLoading
+                          ? () => notifier.goToPage(state.pageNumber - 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Страница ${state.pageNumber} из ${page.pagination.totalPages}',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Следующая страница',
+                      onPressed:
+                          state.pageNumber < page.pagination.totalPages &&
+                              !state.page.isLoading
+                          ? () => notifier.goToPage(state.pageNumber + 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -292,33 +330,53 @@ class _UploadCard extends StatelessWidget {
       PendingUploadState.accepted =>
         'Принято сервером · ${_phaseLabel(progress) ?? 'Ожидает обработки'}',
     };
+    final action = switch (entry.state) {
+      PendingUploadState.pending when blockedReason == null => TextButton(
+        onPressed: sending ? null : replay,
+        child: Text(sending ? 'Отправляем…' : 'Повторить отправку'),
+      ),
+      PendingUploadState.accepted
+          when receipt != null && onOpen != null && !_accessLost(progress) =>
+        TextButton(
+          onPressed: () => onOpen!(receipt.audioId, receipt.jobId),
+          child: const Text('Открыть'),
+        ),
+      _ => null,
+    };
     return Card(
-      child: ListTile(
-        leading: Icon(
-          receipt == null
-              ? Icons.cloud_upload_outlined
-              : Icons.cloud_done_outlined,
-        ),
-        title: Text(label),
-        subtitle: Text(
-          blockedReason ??
-              '${entry.options.anonymous ? 'Без рабочего пространства' : 'Рабочее пространство'} · ${_date(entry.createdAt.toLocal())}',
-        ),
-        trailing: switch (entry.state) {
-          PendingUploadState.pending when blockedReason == null => TextButton(
-            onPressed: sending ? null : replay,
-            child: Text(sending ? 'Отправляем…' : 'Повторить отправку'),
-          ),
-          PendingUploadState.accepted
-              when receipt != null &&
-                  onOpen != null &&
-                  !_accessLost(progress) =>
-            TextButton(
-              onPressed: () => onOpen!(receipt.audioId, receipt.jobId),
-              child: const Text('Открыть'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(
+                  child: Icon(
+                    receipt == null
+                        ? Icons.cloud_upload_outlined
+                        : Icons.cloud_done_outlined,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
             ),
-          _ => null,
-        },
+            const SizedBox(height: 8),
+            Text(
+              blockedReason ??
+                  '${entry.options.anonymous ? 'Без рабочего пространства' : 'Рабочее пространство'} · ${_date(entry.createdAt.toLocal())}',
+            ),
+            if (action != null)
+              Align(alignment: AlignmentDirectional.centerEnd, child: action),
+          ],
+        ),
       ),
     );
   }
@@ -355,31 +413,53 @@ class _ResultCard extends StatelessWidget {
           _ => 'Неизвестное состояние',
         };
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.description_outlined),
-        title: Text('Запись ${_shortId(result.audioId)}'),
-        subtitle: Text(
-          '$workspace · $status${result.createdAt == null ? '' : ' · ${_date(result.createdAt!.toLocal())}'}',
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (onOpen != null && !deleting)
-              TextButton(
-                onPressed: () => onOpen!(result.audioId, result.resultId),
-                child: const Text('Открыть'),
-              ),
-            PopupMenuButton<String>(
-              enabled: !deleting,
-              tooltip: 'Удалить результат',
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Удалить результат'),
+            Row(
+              children: [
+                const ExcludeSemantics(child: Icon(Icons.description_outlined)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Запись ${_shortId(result.audioId)}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  enabled: !deleting,
+                  tooltip: 'Удалить результат',
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Удалить результат'),
+                    ),
+                  ],
+                  onSelected: (_) => onDelete(),
                 ),
               ],
-              onSelected: (_) => onDelete(),
             ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                '$workspace · $status${result.createdAt == null ? '' : ' · ${_date(result.createdAt!.toLocal())}'}',
+              ),
+            ),
+            if (deleting)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Удаляем…'),
+              )
+            else if (onOpen != null)
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: () => onOpen!(result.audioId, result.resultId),
+                  child: const Text('Открыть'),
+                ),
+              ),
           ],
         ),
       ),

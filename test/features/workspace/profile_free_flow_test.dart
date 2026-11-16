@@ -280,6 +280,12 @@ void main() {
         'dictai-profile-free-',
       );
       addTearDown(() => directory.deleteSync(recursive: true));
+      const paths = MethodChannel('plugins.flutter.io/path_provider');
+      messenger.setMockMethodCallHandler(paths, (call) async {
+        if (call.method == 'getTemporaryDirectory') return directory.path;
+        fail('Unexpected path provider call: ${call.method}');
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(paths, null));
       final file = File('${directory.path}/fixture.wav')
         ..writeAsBytesSync(_smallWav());
       final upload = find.text('Upload Audio');
@@ -290,9 +296,19 @@ void main() {
       final target = tester.widget<DragTarget<List<String>>>(
         find.byType(DragTarget<List<String>>),
       );
-      target.onAcceptWithDetails!(
-        DragTargetDetails(data: [file.path], offset: Offset.zero),
-      );
+      await tester.runAsync(() async {
+        target.onAcceptWithDetails!(
+          DragTargetDetails(data: [file.path], offset: Offset.zero),
+        );
+        // Import validates and copies real file bytes before publishing a
+        // selection. Let OS file I/O finish outside the fake widget clock.
+        for (var attempt = 0; attempt < 100; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          await tester.pump();
+          if (find.text('fixture.wav').evaluate().isNotEmpty) return;
+        }
+        fail('The validated WAV selection did not become visible');
+      });
       await tester.pumpAndSettle();
       expect(find.text('fixture.wav'), findsOneWidget);
       expect(adapter.requests.map((r) => r.path), [

@@ -12,6 +12,8 @@ class FinishRecordingDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       title: const Text('Завершить запись?'),
       content: const Text('Готовый WAV будет отправлен на обработку.'),
       actions: [

@@ -6,7 +6,7 @@ status: "draft"
 owner: "unassigned"
 priority: "P0"
 delivery_stage: "ios"
-depends_on: ["TASK-FE-002.08"]
+depends_on: ["TASK-FE-002.20"]
 scope: ["lib/features/record/presentation/record_notifier.dart", "lib/features/record/data/pending_upload_store.dart", "lib/features/results/data/pending_job_store.dart", "lib/features/results/presentation/processing_notifier.dart", "lib/shared/providers/providers.dart", "lib/core/lifecycle/ios_lifecycle_observer.dart", "test/features/record/ios_upload_recovery_test.dart", "docs/ai/tasks/TASK-FE-002.09.md"]
 planned_paths: ["lib/core/lifecycle/ios_lifecycle_observer.dart", "test/features/record/ios_upload_recovery_test.dart"]
 reuses_tasks: ["TASK-FE-001.19", "TASK-FE-001.20", "TASK-FE-001.21", "TASK-FE-001.22", "TASK-FE-001.25", "TASK-FE-001.34"]
@@ -14,6 +14,14 @@ implementation_selected: false
 ---
 
 # TASK-FE-002.09: Адаптировать upload и восстановление к iOS suspend/resume
+
+## Уточнение зависимости — 2026-11-17
+
+Перед recovery реализуется [TASK-FE-002.20](TASK-FE-002.20.md): новые pause/send
+и подтверждённая отмена локальной записи. Очередь .08 → .20 → .09. Отменённая
+ещё до отправки запись не должна попадать в pending journal и восстанавливаться
+как upload. Явная отправка из паузы использует существующую durable подготовку.
+.20 и .09 не выбраны для реализации; прежний линейный dependency .08 заменён.
 
 ## Goal
 

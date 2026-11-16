@@ -21,14 +21,24 @@ typedef SessionCredential = ({String token, int revision});
 
 class _PlatformSecrets implements SecretStore {
   const _PlatformSecrets();
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+      synchronizable: false,
+    ),
+  );
   @override
   Future<String?> read(String key) => _storage.read(key: key);
   @override
   Future<void> write(String key, String value) =>
       _storage.write(key: key, value: value);
   @override
-  Future<void> delete(String key) => _storage.delete(key: key);
+  Future<void> delete(String key) => _storage.delete(
+    key: key,
+    // The pinned iOS plugin reads retained items without an accessibility
+    // filter. Logout must also remove an older WhenUnlocked item it can read.
+    iOptions: const IOSOptions(accessibility: null, synchronizable: false),
+  );
 }
 
 class _Preferences implements LegacyPreferences {

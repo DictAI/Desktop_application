@@ -1,76 +1,143 @@
+import 'dart:async';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/error/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/providers.dart';
 import '../../auth/presentation/auth_notifier.dart';
 import '../data/dto/upload_options.dart';
+import '../data/ios_wav_import.dart';
 import 'record_notifier.dart';
 
 class UploadModal extends ConsumerStatefulWidget {
-  const UploadModal({super.key});
+  const UploadModal({super.key, this.importer});
+
+  final IosWavImporter? importer;
 
   @override
   ConsumerState<UploadModal> createState() => _UploadModalState();
 }
 
 class _UploadModalState extends ConsumerState<UploadModal> {
-  File? _selectedFile;
+  ImportedWav? _selection;
   bool _isDragging = false;
+  bool _selecting = false;
   bool _invalidated = false;
+  int _selectionGeneration = 0;
   String? _selectionError;
+  late final IosWavImporter _importer;
   late UploadLanguage _language;
   late bool _mixed;
 
   @override
   void initState() {
     super.initState();
+    _importer = widget.importer ?? IosWavImporter();
     final recording = ref.read(recordNotifierProvider);
     _language = recording.language;
     _mixed = recording.mixed;
   }
 
-  void _invalidateSelection() {
-    if (!mounted || _invalidated) return;
-    setState(() {
-      _invalidated = true;
-      _selectedFile = null;
-      _selectionError = 'Сессия изменилась. Откройте окно отправки заново.';
-    });
+  @override
+  void dispose() {
+    _selectionGeneration++;
+    unawaited(_selection?.discard());
+    super.dispose();
   }
 
-  void _pickFile() async {
+  bool _current(int generation) =>
+      mounted && !_invalidated && generation == _selectionGeneration;
+
+  void _invalidateSelection() {
+    if (!mounted || _invalidated) return;
+    _selectionGeneration++;
+    final previous = _selection;
+    setState(() {
+      _invalidated = true;
+      _selection = null;
+      _selecting = false;
+      _selectionError = 'Сессия изменилась. Откройте окно отправки заново.';
+    });
+    unawaited(previous?.discard());
+  }
+
+  Future<void> _choose({File? dropped}) async {
+    if (_selecting ||
+        _invalidated ||
+        ref.read(recordNotifierProvider).controlsLocked) {
+      return;
+    }
+    final generation = ++_selectionGeneration;
+    final previous = _selection;
+    setState(() {
+      _selecting = true;
+      _selection = null;
+      _selectionError = null;
+    });
+    await previous?.discard();
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['wav'],
-        allowMultiple: false,
-      );
-      if (!mounted || _invalidated) return;
-      final path = result?.files.single.path;
-      if (path != null) _selectPath(path);
+      final selection = dropped == null
+          ? await _importer.pick(isCurrent: () => _current(generation))
+          : await _importer.importFile(
+              dropped,
+              isCurrent: () => _current(generation),
+            );
+      if (!_current(generation)) {
+        await selection?.discard();
+        return;
+      }
+      setState(() => _selection = selection);
+    } on AppException catch (error) {
+      if (_current(generation)) {
+        setState(() => _selectionError = error.message);
+      }
     } on Exception {
-      if (mounted && !_invalidated) {
+      if (_current(generation)) {
         setState(() => _selectionError = 'Не удалось выбрать аудиофайл.');
+      }
+    } finally {
+      if (mounted && generation == _selectionGeneration) {
+        setState(() => _selecting = false);
       }
     }
   }
 
-  void _selectPath(String path) {
-    final allowed = path.toLowerCase().endsWith('.wav');
-    setState(() {
-      _selectedFile = allowed ? File(path) : null;
-      _selectionError = allowed ? null : 'Выберите файл WAV.';
-    });
+  void _clearSelection() {
+    final previous = _selection;
+    setState(() => _selection = null);
+    unawaited(previous?.discard());
   }
 
   void _upload() {
-    final file = _selectedFile;
+    final selection = _selection;
     final record = ref.read(recordNotifierProvider.notifier);
-    if (file == null || _invalidated || record.hasActiveOperation) return;
-    record.uploadFile(file, language: _language, mixed: _mixed);
+    if (selection == null ||
+        _selecting ||
+        _invalidated ||
+        record.hasActiveOperation) {
+      return;
+    }
+    // Transfer ownership before popping the modal. The journal copies/validates
+    // these exact bytes before POST; keep staging alive until that call settles.
+    _selection = null;
+    unawaited(_sendSelection(record, selection, _language, _mixed));
     Navigator.of(context).pop();
+  }
+
+  Future<void> _sendSelection(
+    RecordNotifier record,
+    ImportedWav selection,
+    UploadLanguage language,
+    bool mixed,
+  ) async {
+    try {
+      await record.uploadFile(selection.file, language: language, mixed: mixed);
+    } finally {
+      await selection.discard();
+    }
   }
 
   @override
@@ -86,12 +153,22 @@ class _UploadModalState extends ConsumerState<UploadModal> {
       }
     });
     final locked =
-        _invalidated || ref.watch(recordNotifierProvider).controlsLocked;
+        _invalidated ||
+        _selecting ||
+        ref.watch(recordNotifierProvider).controlsLocked;
+    final mobile =
+        Theme.of(context).platform == TargetPlatform.iOS ||
+        MediaQuery.sizeOf(context).width < 600;
+    final picker = _picker(locked, mobile);
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: mobile ? 16 : 40,
+        vertical: 24,
+      ),
       child: Container(
         width: 480,
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(mobile ? 20 : 32),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(28),
@@ -103,17 +180,19 @@ class _UploadModalState extends ConsumerState<UploadModal> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Upload Audio',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                  const Expanded(
+                    child: Text(
+                      'Upload Audio',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close upload',
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(
                       Icons.close_rounded,
@@ -123,90 +202,28 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                 ],
               ),
               const SizedBox(height: 20),
-
-              DragTarget<List<String>>(
-                onWillAcceptWithDetails: (_) {
-                  if (locked) return false;
-                  setState(() => _isDragging = true);
-                  return true;
-                },
-                onLeave: (_) => setState(() => _isDragging = false),
-                onAcceptWithDetails: (details) {
-                  setState(() => _isDragging = false);
-                  if (!locked && details.data.length == 1) {
-                    _selectPath(details.data.single);
-                  }
-                },
-                builder: (context, _, __) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  height: 180,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _isDragging
-                          ? AppColors.accent
-                          : AppColors.surfaceElevated,
-                      width: 2,
-                      style: BorderStyle.solid,
-                    ),
-                    color: _isDragging
-                        ? AppColors.accentSubtle
-                        : Colors.transparent,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.upload_rounded,
-                        size: 44,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Перетащите файл WAV',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'or',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: locked ? null : _pickFile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: const Text(
-                          'Choose File',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              if (mobile)
+                picker
+              else
+                DragTarget<List<String>>(
+                  onWillAcceptWithDetails: (_) {
+                    if (locked) return false;
+                    setState(() => _isDragging = true);
+                    return true;
+                  },
+                  onLeave: (_) => setState(() => _isDragging = false),
+                  onAcceptWithDetails: (details) {
+                    setState(() => _isDragging = false);
+                    if (!locked && details.data.length == 1) {
+                      unawaited(_choose(dropped: File(details.data.single)));
+                    }
+                  },
+                  builder: (_, __, ___) => picker,
                 ),
-              ),
-
-              if (_selectedFile != null) ...[
+              if (_selection case final selection?) ...[
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated,
                     borderRadius: BorderRadius.circular(14),
@@ -220,25 +237,16 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedFile!.path
-                                  .split(Platform.pathSeparator)
-                                  .last,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                        child: Text(
+                          selection.name,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       IconButton(
-                        onPressed: () => setState(() => _selectedFile = null),
+                        tooltip: 'Remove selected file',
+                        onPressed: locked ? null : _clearSelection,
                         icon: const Icon(
                           Icons.close_rounded,
                           color: AppColors.textSecondary,
@@ -249,10 +257,15 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                   ),
                 ),
               ],
-
               if (_selectionError case final error?) ...[
                 const SizedBox(height: 12),
-                Text(error, style: const TextStyle(color: AppColors.error)),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    error,
+                    style: const TextStyle(color: AppColors.error),
+                  ),
+                ),
               ],
               const SizedBox(height: 12),
               UploadLanguageControls(
@@ -272,49 +285,18 @@ class _UploadModalState extends ConsumerState<UploadModal> {
                       }),
               ),
               const SizedBox(height: 20),
-
-              Row(
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: AppColors.surfaceElevated,
-                        ),
-                        foregroundColor: AppColors.textPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _selectedFile != null && !locked
-                          ? _upload
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accent,
-                        disabledBackgroundColor: AppColors.surfaceElevated,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        'Upload',
-                        style: TextStyle(
-                          color: _selectedFile != null
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                  ElevatedButton(
+                    onPressed: _selection != null && !locked ? _upload : null,
+                    child: const Text('Upload'),
                   ),
                 ],
               ),
@@ -324,6 +306,51 @@ class _UploadModalState extends ConsumerState<UploadModal> {
       ),
     );
   }
+
+  Widget _picker(bool locked, bool mobile) => AnimatedContainer(
+    duration: const Duration(milliseconds: 150),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: _isDragging ? AppColors.accent : AppColors.surfaceElevated,
+        width: 2,
+      ),
+      color: _isDragging ? AppColors.accentSubtle : Colors.transparent,
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_selecting)
+          Semantics(
+            label: 'Подготовка файла',
+            liveRegion: true,
+            child: const CircularProgressIndicator(),
+          )
+        else
+          const Icon(
+            Icons.upload_rounded,
+            size: 44,
+            color: AppColors.textSecondary,
+          ),
+        const SizedBox(height: 12),
+        Text(
+          _selecting
+              ? 'Подготовка файла…'
+              : mobile
+              ? 'Выберите WAV из Files'
+              : 'Перетащите файл WAV',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: locked ? null : () => unawaited(_choose()),
+          child: const Text('Choose File'),
+        ),
+      ],
+    ),
+  );
 }
 
 class UploadLanguageControls extends StatelessWidget {
@@ -347,19 +374,32 @@ class UploadLanguageControls extends StatelessWidget {
     children: [
       DropdownButton<UploadLanguage>(
         value: language,
+        itemHeight: null,
         isExpanded: true,
         items: const [
           DropdownMenuItem(
             value: UploadLanguage.auto,
-            child: Text('Язык: автоматически'),
+            child: Text(
+              'Язык: автоматически',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           DropdownMenuItem(
             value: UploadLanguage.ru,
-            child: Text('Язык: русский'),
+            child: Text(
+              'Язык: русский',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           DropdownMenuItem(
             value: UploadLanguage.en,
-            child: Text('Язык: английский'),
+            child: Text(
+              'Язык: английский',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
         onChanged: onLanguage == null
