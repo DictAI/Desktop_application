@@ -1,3 +1,74 @@
+# iOS/iPhone: актуальное направление — 2026-11-16
+
+Последующее поручение пользователя «пуш» разрешает commit и push текущего
+проверенного planning diff в `origin/main`. Разрешение относится к документам
+iOS-плана и flow; реализация приложения и release не выбраны. Ограничения
+публикации ниже описывают исходный scope перепланирования до этого поручения.
+
+Пользователь поручил переориентировать задачи на iOS и обновить flow: независимый
+review выполняют агенты внутри процесса, пользователь смотрит конечный результат.
+Сейчас разрешены только документы планирования. Implementation, commit, push,
+merge и release этим поручением не выбраны. Ранние разрешения из истории ниже
+не переносятся на новый scope. Рабочее дерево перед началом чистое, HEAD `44ace4d`.
+
+Координатор/единственный writer планирования — primary-agent. Reviewer получает
+только назначенный отчёт. Implementation owners пока unassigned, активных
+implementation writers нет. PLAN-FE-001 исключён из текущей очереди; его код,
+статусы и evidence сохраняются. Новый указатель — [PLAN-FE-002](plans/PLAN-FE-002.md).
+
+## Реестр iOS ID
+
+| ID | Файл | Owner | Резерв |
+|---|---|---|---|
+| PLAN-FE-002 | plans/PLAN-FE-002.md | primary-agent | created |
+| TASK-FE-002.01 | tasks/TASK-FE-002.01.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.02 | tasks/TASK-FE-002.02.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.03 | tasks/TASK-FE-002.03.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.04 | tasks/TASK-FE-002.04.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.05 | tasks/TASK-FE-002.05.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.06 | tasks/TASK-FE-002.06.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.07 | tasks/TASK-FE-002.07.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.08 | tasks/TASK-FE-002.08.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.09 | tasks/TASK-FE-002.09.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.10 | tasks/TASK-FE-002.10.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.11 | tasks/TASK-FE-002.11.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.12 | tasks/TASK-FE-002.12.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.13 | tasks/TASK-FE-002.13.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.14 | tasks/TASK-FE-002.14.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.15 | tasks/TASK-FE-002.15.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.16 | tasks/TASK-FE-002.16.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.17 | tasks/TASK-FE-002.17.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.18 | tasks/TASK-FE-002.18.md | primary-agent (планирование); unassigned (реализация) | created |
+| TASK-FE-002.19 | tasks/TASK-FE-002.19.md | primary-agent (планирование); unassigned (реализация) | created |
+| REVIEW-FE-002.01-01 | reviews/REVIEW-FE-002.01-01.md | /root/ios_planning_review | created |
+
+
+## Очередь и текущий planning diff
+
+.01 ready к выбору; .02–.19 draft и идут последовательно. Реализация не выбрана.
+[PLAN-FE-002](plans/PLAN-FE-002.md) содержит table/DAG/reuse; exact scopes и
+planned_paths — в карточках. Источники приложения, тесты, платформы и зависимости
+сохранены. Новые backend задачи/контракты не создаются. Внутренний независимый review
+завершён агентом `/root/ios_planning_review`: REVIEW-FE-002.01-01 reviewed,
+F01–F03 P2/F04 P3 исправлены и повторно проверены, открытых findings нет.
+PLAN-FE-002 ready к выбору реализации, accepted не выставлен.
+
+## Проверки текущего planning diff — 2026-11-16
+
+Cwd `/Users/mxdnght/dictai-app`, Python 3 / Ruby Psych 3.1.0 / Git.
+`python3 /tmp/check_dictai_ios_plan.py` — PASS: 19 новых tasks, валидный YAML,
+DAG/table/scopes/planned_paths/links; 51 старая карточка побайтово сохранена
+после удаления только migration metadata/notice, прежние статусы не изменены.
+197 protected file hashes без изменений. `git diff --check` и полный
+tracked/untracked/no-index diff — PASS. Точный verification и ограничения —
+в PLAN-FE-002 и REVIEW-FE-002.01-01. Новые документы отдельно просмотрены.
+Flutter analyze/tests/build, iPhone smoke и backend E2E — NOT RUN, поскольку
+это только перепланирование. Исторические PASS не переносятся на iOS.
+Временные baseline/checker `/tmp/dictai-ios-planning-baseline.json` и
+`/tmp/check_dictai_ios_plan.py` не входят в предлагаемый diff.
+
+## История desktop-проходов (не текущий выбор)
+
 # Публикация frontend по задачам — 2026-11-07
 
 2026-11-09 .49 завершила независимый [review](reviews/REVIEW-FE-001.49-01.md)

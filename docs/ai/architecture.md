@@ -1,5 +1,24 @@
 # DictAI Flutter Frontend: текущая архитектура
 
+## Актуальная граница — 2026-11-16
+
+Приоритет разработки изменён на iOS/iPhone: [PLAN-FE-002](plans/PLAN-FE-002.md).
+Проверен checkout `44ace4d`: `ios/` отсутствует; `.metadata` содержит root/macOS,
+есть исходники macOS/Linux. MainShell строит Row с sidebar шириной 220;
+RecordScreen содержит ширины 360, UploadModal — 480. В RecordNotifier factory
+выбирает только LinuxAudioCapture/MacosAudioCapture/MicrophoneCapture;
+MicrophoneCapture явно ограничен `Platform.isMacOS`. Плагин record в pubspec
+сам по себе не даёт работающую iOS-запись. Detail route пока отсутствует.
+
+Переиспользуются Riverpod/GoRouter/Dio, SecureStorage с FlutterSecureStorage,
+V2 upload/options/WAV validator, durable pending upload/job stores, status/canonical/
+documents/results API и текущие workspace/contact/auth клиенты. Это оценка кода,
+не iOS runtime evidence. Нужны Runner, Keychain/ATS проверки, мобильная навигация,
+iOS audio session/lifecycle, Files/import/share и подтверждение на iPhone.
+Desktop system capture не входит в iOS; микрофон и импорт WAV — планируемые входы.
+Ниже сохранён исторический snapshot 2026-10-24; при расхождении приоритет имеют
+текущие исходники и эта актуальная граница, а не старые описания storage/voice API.
+
 Снимок исходников на 2026-10-24. Это описание существующего кода, не проект
 будущей интеграции. Поведение запущенного приложения и доступность API здесь
 не объявляются проверенными. Пути текущего приложения относятся к корню frontend;

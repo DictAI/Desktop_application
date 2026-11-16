@@ -24,9 +24,21 @@ planned_paths:
   - "lib/features/results/presentation/speaker_assignment_notifier.dart"
   - "test/features/results/speaker_contact_assignment_test.dart"
 delivery_stage: future
+execution_lane: "historical_not_selected"
+planning_disposition: "deferred_backend"
+ios_successors: []
 ---
 
 # TASK-FE-001.47: Добавить выбор и создание workspace-контакта при назначении
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Будущие назначения/имена отложены до реального backend и отдельного выбора;
+они не являются prerequisite iOS-версии.
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

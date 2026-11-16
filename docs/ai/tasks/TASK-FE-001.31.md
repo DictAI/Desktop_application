@@ -23,9 +23,20 @@ planned_paths:
   - "test/features/results/export_service_test.dart"
   - "lib/features/results/presentation/result_detail_screen.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.07", "TASK-FE-002.14"]
 ---
 
 # TASK-FE-001.31: Сделать экспорт TXT/PDF/WAV и локальное открытие кроссплатформенными
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.07](TASK-FE-002.07.md), [TASK-FE-002.14](TASK-FE-002.14.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

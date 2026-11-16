@@ -26,9 +26,21 @@ planned_paths:
   - "test/features/results/speaker_sample_selector_test.dart"
   - "test/features/results/speaker_sample_playback_test.dart"
 delivery_stage: future
+execution_lane: "historical_not_selected"
+planning_disposition: "deferred_backend"
+ios_successors: []
 ---
 
 # TASK-FE-001.45: Воспроизводить первый подходящий фрагмент Speaker из canonical
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Будущие назначения/имена отложены до реального backend и отдельного выбора;
+они не являются prerequisite iOS-версии.
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

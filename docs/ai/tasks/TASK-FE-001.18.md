@@ -21,9 +21,20 @@ planned_paths:
   - "lib/features/record/data/dto/upload_options.dart"
   - "test/features/record/wav_validator_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.06", "TASK-FE-002.07"]
 ---
 
 # TASK-FE-001.18: Проверять WAV/лимиты и формировать upload options
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.06](TASK-FE-002.06.md), [TASK-FE-002.07](TASK-FE-002.07.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

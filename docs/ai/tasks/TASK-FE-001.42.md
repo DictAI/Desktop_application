@@ -17,9 +17,20 @@ scope:
 planned_paths:
   - "docs/release/BATCH_ACCEPTANCE.ru.md"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.18", "TASK-FE-002.19"]
 ---
 
 # TASK-FE-001.42: Зафиксировать готовность frontend-интеграции к batch-релизу
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.18](TASK-FE-002.18.md), [TASK-FE-002.19](TASK-FE-002.19.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

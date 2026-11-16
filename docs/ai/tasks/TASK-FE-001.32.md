@@ -30,9 +30,20 @@ planned_paths:
   - "lib/features/results/data/result_audio_cache.dart"
   - "lib/features/results/presentation/result_audio_player.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.16"]
 ---
 
 # TASK-FE-001.32: Согласовать delete/tombstone и очистку локального состояния
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.16](TASK-FE-002.16.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

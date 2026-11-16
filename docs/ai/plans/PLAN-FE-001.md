@@ -1,15 +1,26 @@
 ---
 id: PLAN-FE-001
 title: "Полноценный DictAI Flutter на существующем batch backend"
-status: in_progress
+status: blocked
 owner: primary-agent
-selected_tasks: ["TASK-FE-001.03", "TASK-FE-001.04", "TASK-FE-001.05", "TASK-FE-001.06", "TASK-FE-001.07", "TASK-FE-001.08", "TASK-FE-001.09", "TASK-FE-001.10", "TASK-FE-001.11", "TASK-FE-001.12", "TASK-FE-001.13", "TASK-FE-001.14", "TASK-FE-001.15", "TASK-FE-001.16", "TASK-FE-001.17", "TASK-FE-001.18", "TASK-FE-001.19", "TASK-FE-001.20", "TASK-FE-001.21", "TASK-FE-001.22", "TASK-FE-001.23", "TASK-FE-001.24", "TASK-FE-001.25", "TASK-FE-001.26", "TASK-FE-001.27", "TASK-FE-001.28", "TASK-FE-001.29", "TASK-FE-001.30", "TASK-FE-001.31", "TASK-FE-001.32", "TASK-FE-001.33", "TASK-FE-001.34", "TASK-FE-001.35", "TASK-FE-001.36", "TASK-FE-001.37", "TASK-FE-001.38", "TASK-FE-001.39", "TASK-FE-001.40", "TASK-FE-001.41", "TASK-FE-001.42", "TASK-FE-001.44", "TASK-FE-001.48", "TASK-FE-001.49"]
+selected_tasks: []
 frontend_commit: 80959cc10eacabf45fbf461dbe596030e4e7277c
 requirements_revision: current-backend-2026-11-02
 backend_commit: f639db8d7d2b0d1833ad0fb7dab99cca231e8ea6
+execution_lane: "historical_desktop"
+blocked_by: ["Перенаправление на iOS; новая очередь PLAN-FE-002, desktop-исполнение не выбрано."]
 ---
 
 # PLAN-FE-001: DictAI на существующем batch backend
+
+## Приоритет изменён — 2026-11-16
+
+Активная очередь перенесена в [PLAN-FE-002](PLAN-FE-002.md). Этот план blocked
+для исполнения вследствие смены направления, а не из-за потери готового кода.
+selected_tasks очищен; статусы/evidence 51 карточки сохранены. Их execution_lane
+historical_not_selected исключает автоматическое продолжение прежней очереди.
+Ниже — исторические решения desktop/batch этапа. Новое поручение разрешает
+только перепланирование; старые commit/push разрешения не применяются.
 
 ## Текущее решение и разрешение
 

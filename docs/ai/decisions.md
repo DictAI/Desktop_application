@@ -98,3 +98,29 @@ accepted .01/.02 сохраняются; correction phase меняет толь�
 После независимого review пользователь поручил сразу исполнять все current tasks
 по DAG с независимыми reviews, без автоматического accepted. Commit/push/merge
 последним поручением запрещены, прежнее разрешение публикации не применяется.
+
+## ADR-FE-009: iOS/iPhone вместо продолжения desktop-очереди
+
+2026-11-16 пользователь поручил переориентировать разработку на iOS, переписать
+или добавить задачи. Создан PLAN-FE-002/.01–.19. PLAN-FE-001 blocked для исполнения,
+selected_tasks очищен; все старые task статусы/evidence сохранены, execution_lane
+historical_not_selected и ios_successors дают перенос без повторного использования ID.
+Flutter/Riverpod/GoRouter/Dio, готовые API/DTO/journals и desktop source сохраняются.
+Первый iOS сценарий — microphone + Files WAV, background audio/interruption policy,
+mobile UI, recoverable upload, transcript/player/share, physical device E2E и candidate.
+Linux/macOS host проверки не являются iOS gate. Speaker naming/backend extensions
+остаются future. Минимальный iOS target определяется по pinned SDK/plugins в .01.
+Запрос разрешает planning docs, не implementation, обновление packages или выпуск.
+
+## ADR-FE-010: Пользователь видит конечный результат, review внутренний
+
+2026-11-16 пользователь: «без ревью, чтобы я смотрел только на конечный результат;
+для ревью можешь запускать агентов, зафиксируй это в flow». Это отказ от ручного
+промежуточного review пользователем; независимый контроль качества организует
+coordinator через субагентов. Reviewer не пишет проверяемый source, findings
+исправляет implementer в выбранном scope, затем delta review и релевантные checks.
+Внутренние переходы не требуют подтверждения пользователя. В явно выбранной очереди
+checks + review без блокирующих findings разрешают зависимый шаг; accepted остаётся
+явной приёмкой конечного результата. Не превращать это правило в автоматический
+выбор всего плана, commit/push или публикацию. Пользователю сообщаются конечный
+результат, проверки и существенные ограничения, уточнения — при реальных blockers.

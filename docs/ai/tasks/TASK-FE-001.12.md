@@ -25,9 +25,20 @@ planned_paths:
   - "test/features/workspace/workspace_crud_widget_test.dart"
   - "test/features/workspace/workspace_record_start_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.04", "TASK-FE-002.05"]
 ---
 
 # TASK-FE-001.12: Завершить workspace UX создания и переименования
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.04](TASK-FE-002.04.md), [TASK-FE-002.05](TASK-FE-002.05.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

@@ -21,9 +21,20 @@ planned_paths:
   - "test/features/record/linux_capture_test.dart"
   - "docs/development/LINUX_AUDIO.ru.md"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "deferred_desktop"
+ios_successors: ["TASK-FE-002.06"]
 ---
 
 # TASK-FE-001.17: Сделать Linux system+microphone capture предсказуемым
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.06](TASK-FE-002.06.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

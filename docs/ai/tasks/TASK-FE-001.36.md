@@ -18,9 +18,20 @@ scope:
 planned_paths:
   - "docs/testing/MACOS_BATCH_VERIFICATION.ru.md"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.01", "TASK-FE-002.02", "TASK-FE-002.18"]
 ---
 
 # TASK-FE-001.36: Проверить macOS Debug/Release, permissions, capture и файлы
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.01](TASK-FE-002.01.md), [TASK-FE-002.02](TASK-FE-002.02.md), [TASK-FE-002.18](TASK-FE-002.18.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

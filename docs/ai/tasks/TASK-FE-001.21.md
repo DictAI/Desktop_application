@@ -23,9 +23,20 @@ planned_paths:
   - "lib/features/record/data/dto/v2_session_dto.dart"
   - "test/features/results/speech_status_api_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.09"]
 ---
 
 # TASK-FE-001.21: Добавить job status и anonymous session V2 контракты
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.09](TASK-FE-002.09.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

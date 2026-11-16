@@ -21,9 +21,20 @@ planned_paths:
   - "lib/features/record/data/dto/upload_accepted_dto.dart"
   - "test/features/record/v2_upload_api_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.09"]
 ---
 
 # TASK-FE-001.19: Добавить V2 multipart upload client и accepted DTO
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.09](TASK-FE-002.09.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

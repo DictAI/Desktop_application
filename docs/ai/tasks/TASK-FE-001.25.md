@@ -24,9 +24,20 @@ planned_paths:
   - "lib/features/results/data/pending_job_store.dart"
   - "test/features/results/processing_recovery_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.09", "TASK-FE-002.15"]
 ---
 
 # TASK-FE-001.25: Организовать lifecycle polling и восстановление accepted jobs
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.09](TASK-FE-002.09.md), [TASK-FE-002.15](TASK-FE-002.15.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

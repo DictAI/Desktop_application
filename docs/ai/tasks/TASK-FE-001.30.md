@@ -21,9 +21,20 @@ planned_paths:
   - "lib/features/results/data/dto/document_kind.dart"
   - "test/features/results/documents_api_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.11", "TASK-FE-002.13", "TASK-FE-002.14"]
 ---
 
 # TASK-FE-001.30: Добавить авторизованный document/original download client
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.11](TASK-FE-002.11.md), [TASK-FE-002.13](TASK-FE-002.13.md), [TASK-FE-002.14](TASK-FE-002.14.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

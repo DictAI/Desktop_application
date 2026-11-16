@@ -23,9 +23,20 @@ planned_paths:
   - "test/features/results/canonical_api_test.dart"
   - "test/fixtures/canonical_v1.json"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.09", "TASK-FE-002.11"]
 ---
 
 # TASK-FE-001.22: Добавить canonical transcript DTO и 200/202 result API
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.09](TASK-FE-002.09.md), [TASK-FE-002.11](TASK-FE-002.11.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

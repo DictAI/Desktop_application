@@ -20,9 +20,20 @@ planned_paths:
   - "lib/core/network/api_error_mapper.dart"
   - "test/core/network/api_error_mapper_test.dart"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.03"]
 ---
 
 # TASK-FE-001.07: Унифицировать безопасную обработку HTTP и транспортных ошибок
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.03](TASK-FE-002.03.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

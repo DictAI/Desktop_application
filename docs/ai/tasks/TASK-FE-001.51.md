@@ -35,9 +35,21 @@ planned_paths:
   - "lib/features/results/presentation/result_detail_notifier.dart"
   - "test/features/results/named_export_test.dart"
 delivery_stage: future
+execution_lane: "historical_not_selected"
+planning_disposition: "deferred_backend"
+ios_successors: []
 ---
 
 # TASK-FE-001.51: Интегрировать экспорт TXT/PDF с сохранёнными именами
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Будущие назначения/имена отложены до реального backend и отдельного выбора;
+они не являются prerequisite iOS-версии.
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 

@@ -23,9 +23,20 @@ planned_paths:
   - "test/journeys/batch_restart_test.dart"
   - "docs/testing/BATCH_MATRIX.ru.md"
 delivery_stage: current
+execution_lane: "historical_not_selected"
+planning_disposition: "historical_reuse"
+ios_successors: ["TASK-FE-002.17"]
 ---
 
 # TASK-FE-001.35: Покрыть batch-пути unit/widget regression suite
+
+## Переориентация на iOS — 2026-11-16
+
+Карточка сохраняет прежний status, реализацию и evidence; в активную очередь
+не входит. Актуальный план — [PLAN-FE-002](../plans/PLAN-FE-002.md).
+Перенос/повторная проверка на iOS: [TASK-FE-002.17](TASK-FE-002.17.md).
+Нижележащие старые поручения/очередь — история, не текущее разрешение реализации.
+
 
 ## Goal
 
