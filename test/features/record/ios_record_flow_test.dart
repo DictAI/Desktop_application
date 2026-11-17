@@ -186,7 +186,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Paused'), findsOneWidget);
-      expect(find.text('Resume'), findsOneWidget);
+      expect(find.bySemanticsLabel('Продолжить запись'), findsOneWidget);
       final pausedElapsed = tester
           .widget<Text>(find.byKey(const Key('record-elapsed')))
           .data;
@@ -198,7 +198,7 @@ void main() {
         tester.widget<Text>(find.byKey(const Key('record-elapsed'))).data,
         pausedElapsed,
       );
-      await tester.tap(find.text('Resume'));
+      await tester.tap(find.bySemanticsLabel('Продолжить запись'));
       await tester.pump();
       expect(record.state.status, RecordStatus.recording);
       record.snapshot(RecordStatus.error, error: 'Микрофон недоступен');

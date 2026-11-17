@@ -10,10 +10,18 @@ depends_on: ["TASK-FE-002.14"]
 scope: ["lib/features/results/presentation/processing_notifier.dart", "lib/features/results/presentation/result_ready_notice.dart", "lib/core/shell/main_shell.dart", "lib/core/lifecycle/ios_lifecycle_observer.dart", "lib/shared/providers/providers.dart", "test/features/results/ios_ready_notice_test.dart", "docs/ai/tasks/TASK-FE-002.15.md"]
 planned_paths: ["lib/features/results/presentation/result_ready_notice.dart", "lib/core/lifecycle/ios_lifecycle_observer.dart", "test/features/results/ios_ready_notice_test.dart"]
 reuses_tasks: ["TASK-FE-001.25", "TASK-FE-001.48"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.15: Связать готовность результата с lifecycle и уведомлением внутри приложения
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

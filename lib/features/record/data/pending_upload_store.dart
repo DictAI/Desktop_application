@@ -258,7 +258,9 @@ final class PendingUploadStore {
         throw _sourceChanged;
       }
     } on FileSystemException {
-      throw _sourceChanged;
+      // A protected/temporarily unavailable iOS file is not evidence that its
+      // bytes changed. Keep the original key and allow an explicit later retry.
+      throw _unavailable;
     }
   }
 
@@ -355,7 +357,8 @@ final class PendingUploadStore {
     } on AppException {
       return null;
     } on FileSystemException {
-      return null;
+      // Do not label a temporarily locked journal entry as corrupt.
+      throw _unavailable;
     }
   }
 

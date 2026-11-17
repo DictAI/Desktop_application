@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +10,7 @@ import '../../core/error/app_exception.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/secure_storage.dart';
 import '../../core/config/app_config.dart';
+import '../../core/lifecycle/ios_lifecycle_observer.dart';
 import '../../features/auth/data/auth_api.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
 import '../../features/workspace/data/workspace_api.dart';
@@ -20,6 +22,9 @@ import '../../features/record/data/pending_upload_store.dart';
 import '../../features/record/data/v2_upload_api.dart';
 import '../../features/results/data/results_api.dart';
 import '../../features/results/data/canonical_api.dart';
+import '../../features/results/data/documents_api.dart';
+import '../../features/results/data/original_audio_cache.dart';
+import '../../features/results/presentation/audio_player.dart';
 import '../../features/results/data/speech_status_api.dart';
 import '../../features/results/data/pending_job_store.dart';
 import '../../features/results/presentation/processing_notifier.dart';
@@ -85,6 +90,62 @@ final canonicalApiProvider = Provider<CanonicalApi>(
   (ref) => CanonicalApi(ref.read(dioProvider)),
 );
 
+final documentsApiProvider = Provider<DocumentsApi>(
+  (ref) => DocumentsApi(ref.read(dioProvider)),
+);
+
+/// Owned downloads/previews only; tests override this without platform calls.
+final resultTemporaryDirectoryProvider = Provider<Future<Directory> Function()>(
+  (ref) => getTemporaryDirectory,
+);
+
+final iosPlaybackCoordinatorProvider = Provider<IosPlaybackCoordinator?>((ref) {
+  return defaultTargetPlatform == TargetPlatform.iOS
+      ? IosPlaybackCoordinator()
+      : null;
+});
+
+final originalAudioCacheProvider = Provider.autoDispose
+    .family<OriginalAudioCache, BatchSession>((ref, session) {
+      final cache = OriginalAudioCache(
+        ownerId: session.ownerId,
+        api: ref.read(documentsApiProvider),
+        temporaryDirectory: ref.read(resultTemporaryDirectoryProvider),
+        isCurrentSession: () => session.isCurrent,
+      );
+      ref.onDispose(() => unawaited(cache.close().catchError((Object _) {})));
+      unawaited(
+        session.cancelToken.whenCancel
+            .then((_) => cache.close())
+            .catchError((Object _) {}),
+      );
+      return cache;
+    });
+
+typedef ResultAudioKey = ({BatchSession session, String audioId, String jobId});
+final resultAudioControllerProvider = ChangeNotifierProvider.autoDispose
+    .family<ResultAudioController, ResultAudioKey>((ref, key) {
+      final controller = ResultAudioController(
+        cache: ref.watch(originalAudioCacheProvider(key.session)),
+        audioId: key.audioId,
+        jobId: key.jobId,
+        isCurrentSession: () =>
+            key.session.isCurrent &&
+            !key.session.jobs.isDeleted((
+              audioId: key.audioId,
+              jobId: key.jobId,
+            )),
+        coordinator: ref.read(iosPlaybackCoordinatorProvider),
+        lifecycle: ref.read(iosLifecycleObserverProvider),
+      );
+      unawaited(
+        key.session.cancelToken.whenCancel
+            .then((_) => controller.close())
+            .catchError((Object _) {}),
+      );
+      return controller;
+    });
+
 final processingNotifierProvider = StateNotifierProvider.autoDispose
     .family<
       ProcessingNotifier,
@@ -103,6 +164,16 @@ final batchApplicationSupportDirectoryProvider =
     Provider<Future<Directory> Function()>(
       (ref) => getApplicationSupportDirectory,
     );
+
+/// iOS foreground work shares one observer, independently from recording.
+/// A nullable provider keeps desktop polling behavior unchanged and permits
+/// injecting a lifecycle source in host tests without opening platform plugins.
+final iosLifecycleObserverProvider = Provider<IosLifecycleObserver?>((ref) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return null;
+  final observer = IosLifecycleObserver();
+  ref.onDispose(observer.dispose);
+  return observer;
+});
 
 /// One owner, journal, and processing tracker for the logical login session.
 /// The owner claim selects a local directory. Authorization remains at the gateway.
@@ -131,7 +202,39 @@ final class BatchSession {
   late final PendingJobStore jobs;
   late final ProcessingSession processingSession;
   ProcessingNotifier? _tracker;
+  IosLifecycleObserver? _lifecycle;
+  Future<void>? _restoringJobs;
   bool get isCurrent => !cancelToken.isCancelled;
+
+  void _bindLifecycle(IosLifecycleObserver? lifecycle) {
+    if (lifecycle == null || !isCurrent) return;
+    _lifecycle = lifecycle;
+    lifecycle.addListener(_lifecycleChanged);
+    _lifecycleChanged();
+  }
+
+  void _lifecycleChanged() {
+    if (!isCurrent) return;
+    if (_lifecycle?.isForeground != true) {
+      _tracker?.suspendPolling();
+      return;
+    }
+    _tracker?.resumePolling();
+    unawaited(_restoreJobs());
+  }
+
+  Future<void> _restoreJobs() {
+    if (!isCurrent) return Future.value();
+    return _restoringJobs ??= () async {
+      try {
+        await _tracker!.restore();
+      } on AppException {
+        // File protection or unavailable storage must not revoke the session.
+        // The library exposes journal errors; the next foreground transition
+        // can retry this read. Unknown uploads remain explicit same-key replay.
+      }
+    }().whenComplete(() => _restoringJobs = null);
+  }
 
   Future<PendingUpload> submit(
     String localId, {
@@ -151,6 +254,8 @@ final class BatchSession {
 
   void _close() {
     if (!isCurrent) return;
+    _lifecycle?.removeListener(_lifecycleChanged);
+    _lifecycle = null;
     cancelToken.cancel();
     _tracker?.stopSession();
   }
@@ -200,6 +305,7 @@ final batchSessionProvider = FutureProvider.autoDispose<BatchSession>((
     // and cancels the tracker before any new owner instance can be opened.
     ref.listen(tracker, (_, __) {});
     batch._tracker = ref.read(tracker.notifier);
+    batch._bindLifecycle(ref.read(iosLifecycleObserverProvider));
     return batch;
   } catch (_) {
     lease.close();

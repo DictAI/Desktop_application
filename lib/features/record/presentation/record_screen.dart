@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../results/presentation/result_detail_screen.dart';
 import 'package:record/record.dart' show InputDevice;
 import '../../../core/theme/app_colors.dart';
 import '../../workspace/presentation/workspace_notifier.dart';
@@ -150,16 +153,58 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 status: state.status,
                 anonymous: state.anonymous,
                 onTap: state.isActive
-                    ? () => ref
-                          .read(recordExitGuardProvider)
-                          .confirmFinish(context)
+                    ? ios
+                          ? notifier.supportsPause && !state.discardPending
+                                ? notifier.togglePause
+                                : null
+                          : () => ref
+                                .read(recordExitGuardProvider)
+                                .confirmFinish(context)
                     : canRecord
                     ? notifier.startRecording
                     : null,
-                onPause: state.isActive && notifier.supportsPause
+                onPause: !ios && state.isActive && notifier.supportsPause
                     ? () => notifier.togglePause()
                     : null,
               ),
+              if (ios &&
+                  (state.status == RecordStatus.paused ||
+                      state.discardPending)) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 16,
+                  runSpacing: 12,
+                  children: [
+                    if (!state.discardPending)
+                      FilledButton.icon(
+                        key: const Key('send-paused-recording'),
+                        onPressed: notifier.sendPausedRecording,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(48, 48),
+                        ),
+                        icon: const Icon(Icons.send_rounded),
+                        label: const Text('Отправить'),
+                      ),
+                    IconButton(
+                      tooltip: 'Удалить запись',
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      onPressed: notifier.canDiscard
+                          ? () => ref
+                                .read(recordExitGuardProvider)
+                                .confirmDiscard(context)
+                          : null,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 32),
 
               if (state.isActive) ...[
@@ -181,7 +226,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 ),
                 const SizedBox(height: 8),
               ],
-              _RecordStatusWidget(status: state.status),
+              if (state.discardPending)
+                Text(
+                  state.status == RecordStatus.error
+                      ? 'Повторите удаление записи'
+                      : 'Удаление записи…',
+                  textAlign: TextAlign.center,
+                )
+              else
+                _RecordStatusWidget(status: state.status),
               if (state.isActive && state.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Semantics(
@@ -256,6 +309,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               if (state.status == RecordStatus.accepted) ...[
                 const SizedBox(height: 20),
                 _UploadSuccess(onReset: notifier.reset),
+                if (state.accepted case final accepted?)
+                  OutlinedButton.icon(
+                    onPressed: () => context.go(
+                      resultDetailLocation(
+                        accepted.audioId,
+                        jobId: accepted.jobId,
+                      ),
+                    ),
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Открыть результат'),
+                  ),
               ],
               if (state.canRetryUpload)
                 TextButton(
@@ -443,6 +507,7 @@ class _RecordButtonState extends State<_RecordButton>
     final isRecording = widget.status == RecordStatus.recording;
     final isPaused = widget.status == RecordStatus.paused;
     final isActive = isRecording || isPaused;
+    final ios = Theme.of(context).platform == TargetPlatform.iOS;
     final isBlocked = widget.onTap == null && !isActive;
 
     final idleColor = widget.anonymous
@@ -462,7 +527,13 @@ class _RecordButtonState extends State<_RecordButton>
         Semantics(
           button: true,
           enabled: widget.onTap != null,
-          label: isActive ? 'Завершить запись' : 'Начать запись',
+          label: isActive
+              ? ios
+                    ? isPaused
+                          ? 'Продолжить запись'
+                          : 'Приостановить запись'
+                    : 'Завершить запись'
+              : 'Начать запись',
           child: InkResponse(
             onTap: widget.onTap,
             radius: 120,
@@ -505,7 +576,13 @@ class _RecordButtonState extends State<_RecordButton>
                       ],
                     ),
                     child: Icon(
-                      isActive ? Icons.stop_rounded : Icons.mic_rounded,
+                      isActive
+                          ? ios
+                                ? isPaused
+                                      ? Icons.play_arrow_rounded
+                                      : Icons.pause_rounded
+                                : Icons.stop_rounded
+                          : Icons.mic_rounded,
                       size: 80,
                       color: AppColors.textPrimary,
                     ),
@@ -543,9 +620,18 @@ class _RecordStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ios = Theme.of(context).platform == TargetPlatform.iOS;
     final (label, sub) = switch (status) {
-      RecordStatus.recording => ('Recording...', 'Tap stop to finish'),
-      RecordStatus.paused => ('Paused', 'Tap stop to finish & upload'),
+      RecordStatus.recording => (
+        'Recording...',
+        ios ? 'Нажмите, чтобы приостановить' : 'Tap stop to finish',
+      ),
+      RecordStatus.paused => (
+        'Paused',
+        ios
+            ? 'Продолжите запись или отправьте её'
+            : 'Tap stop to finish & upload',
+      ),
       RecordStatus.uploading => ('Uploading...', ''),
       RecordStatus.starting => ('Подготовка записи…', ''),
       RecordStatus.preparing => ('Подготовка WAV…', ''),

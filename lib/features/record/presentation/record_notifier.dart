@@ -42,6 +42,7 @@ class RecordState {
     this.mixed = false,
     this.accepted,
     this.canRetryUpload = false,
+    this.discardPending = false,
   });
 
   final RecordStatus status;
@@ -55,10 +56,13 @@ class RecordState {
   final bool mixed;
   final UploadAcceptedDto? accepted;
   final bool canRetryUpload;
+  // A failed deletion still owns its source; only an explicit retry may clear it.
+  final bool discardPending;
 
   bool get isActive =>
       status == RecordStatus.recording || status == RecordStatus.paused;
   bool get controlsLocked =>
+      discardPending ||
       isActive ||
       switch (status) {
         RecordStatus.starting ||
@@ -81,6 +85,7 @@ class RecordState {
     bool? mixed,
     UploadAcceptedDto? accepted,
     bool? canRetryUpload,
+    bool? discardPending,
     bool clearDevice = false,
     bool clearWorkspace = false,
     bool clearError = false,
@@ -104,6 +109,7 @@ class RecordState {
     accepted: clearUpload ? null : accepted ?? this.accepted,
     canRetryUpload:
         canRetryUpload ?? (clearUpload ? false : this.canRetryUpload),
+    discardPending: discardPending ?? this.discardPending,
   );
 }
 
@@ -146,11 +152,18 @@ class RecordNotifier extends StateNotifier<RecordState> {
   String? _pendingUploadId;
   int _generation = 0;
   Future<void>? _pauseTransition;
+  Future<bool>? _discarding;
+  File? _discardSource;
   bool _refreshingDevices = false;
 
   bool get hasActiveOperation => state.controlsLocked;
   bool get supportsPause => _capture?.supportsPause ?? false;
   Object? get recordingIdentity => _recordingOptions;
+  int get recordingRevision => _generation;
+  bool get canDiscard =>
+      _recordingOptions != null &&
+      (state.isActive ||
+          state.discardPending && state.status == RecordStatus.error);
 
   bool _current(int generation) => mounted && _generation == generation;
 
@@ -321,6 +334,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
           event,
         ) {
           if (!_current(generation) || !identical(_capture, capture)) return;
+          if (state.discardPending) return;
           if (event.status == CaptureStatus.failed) {
             _fail(
               generation,
@@ -367,6 +381,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
   Future<void> togglePause() {
     final capture = _capture;
     if (_pauseTransition != null ||
+        state.discardPending ||
         !state.isActive ||
         capture == null ||
         !capture.supportsPause) {
@@ -401,6 +416,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
       }
     } on AppException catch (error) {
       if (!_current(generation)) return;
+      if (state.discardPending) return;
       if (capture.status == CaptureStatus.paused) {
         state = state.copyWith(
           status: RecordStatus.paused,
@@ -420,6 +436,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
     final options = _recordingOptions;
     final session = _session;
     if (!confirmed ||
+        state.discardPending ||
         !state.isActive ||
         capture == null ||
         options == null ||
@@ -431,6 +448,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
     if (pause != null) {
       await pause;
       if (!_current(generation) ||
+          state.discardPending ||
           !identical(_recordingOptions, options) ||
           !state.isActive) {
         return;
@@ -452,6 +470,99 @@ class RecordNotifier extends StateNotifier<RecordState> {
       if (!_current(generation)) return;
       await _cleanupCapture();
       _fail(generation, error);
+    }
+  }
+
+  /// iOS sends only from a settled pause. Desktop keeps its explicit Stop flow.
+  Future<void> sendPausedRecording() async {
+    if (state.status != RecordStatus.paused || _pauseTransition != null) return;
+    await finishRecording(confirmed: true);
+  }
+
+  /// Stops writing before deleting this capture's source. No journal or POST is
+  /// involved. On failure we retain ownership and block new work until retry.
+  Future<bool> discardRecording({required bool confirmed}) {
+    if (!confirmed) return Future.value(false);
+    if (_discarding != null) return _discarding!;
+    if (!canDiscard) return Future.value(false);
+    final work = _discardRecording();
+    _discarding = work;
+    work.whenComplete(() {
+      if (identical(_discarding, work)) _discarding = null;
+    });
+    return work;
+  }
+
+  Future<bool> _discardRecording() async {
+    final generation = _generation;
+    final identity = _recordingOptions;
+    final capture = _capture;
+    final session = _session;
+    if (identity?.source is! RecordingUploadSource || session == null) {
+      return false;
+    }
+    final sourcePath = capture?.sourcePath;
+    if (_discardSource == null && sourcePath != null && sourcePath.isNotEmpty) {
+      _discardSource = File(sourcePath);
+    }
+    final source = _discardSource;
+    // Reserve the operation before waiting for a pause/resume callback.
+    state = state.copyWith(discardPending: true, clearError: true);
+    try {
+      await _pauseTransition;
+      if (!_current(generation) || !identical(identity, _recordingOptions)) {
+        return false;
+      }
+      state = state.copyWith(status: RecordStatus.preparing);
+      await _releaseCapture();
+      // A native dispose may report the final owned path after stopping.
+      final stoppedPath = capture?.sourcePath;
+      final owned =
+          source ??
+          (stoppedPath != null && stoppedPath.isNotEmpty
+              ? File(stoppedPath)
+              : null);
+      if (owned == null) {
+        throw const ServerException(
+          'Не удалось определить файл записи для удаления.',
+        );
+      }
+      if (_current(generation)) _discardSource = owned;
+      // Delete exactly the source, never a parent directory or an imported WAV.
+      final type = await FileSystemEntity.type(owned.path, followLinks: false);
+      if (type != FileSystemEntityType.notFound) {
+        if (type != FileSystemEntityType.file) {
+          throw const ServerException(
+            'Не удалось безопасно удалить файл записи.',
+          );
+        }
+        await owned.delete();
+      }
+      if (!_currentSession(generation, session) ||
+          !identical(identity, _recordingOptions)) {
+        return false;
+      }
+      _recordingOptions = null;
+      _discardSource = null;
+      _pendingUploadId = null;
+      state = state.copyWith(
+        status: RecordStatus.idle,
+        discardPending: false,
+        clearError: true,
+        clearUpload: true,
+      );
+      return true;
+    } on Object catch (error) {
+      if (_current(generation) && identical(identity, _recordingOptions)) {
+        state = state.copyWith(
+          status: RecordStatus.error,
+          discardPending: true,
+          errorMessage: error is AppException
+              ? error.message
+              : 'Не удалось удалить запись. Повторите удаление.',
+        );
+      }
+      return false;
     }
   }
 
@@ -610,6 +721,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
     _pendingUploadId = null;
     _recordingOptions = null;
     _pauseTransition = null;
+    _discardSource = null;
     state = RecordState(inputDevices: state.inputDevices);
     unawaited(_cleanupCapture());
   }

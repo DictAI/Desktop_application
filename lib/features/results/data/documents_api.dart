@@ -56,14 +56,20 @@ final class DocumentsApi {
     String audioId, {
     required Directory temporaryDirectory,
     CancelToken? cancelToken,
+    int? maxBytes,
   }) {
     _requireId(audioId, pathSegment: true);
+    if (maxBytes != null &&
+        (maxBytes <= 0 || maxBytes > WavValidator.maxFileBytes)) {
+      throw ArgumentError.value(maxBytes, 'maxBytes');
+    }
     return _download(
       '/ingest/v2/audio/${Uri.encodeComponent(audioId)}/original',
       fileName: 'original.wav',
       contentType: 'audio/wav',
       temporaryDirectory: temporaryDirectory,
       original: true,
+      maxBytes: maxBytes,
       cancelToken: cancelToken,
     );
   }
@@ -75,6 +81,7 @@ final class DocumentsApi {
     required Directory temporaryDirectory,
     Map<String, dynamic>? query,
     bool original = false,
+    int? maxBytes,
     CancelToken? cancelToken,
   }) async {
     // An internal token lets this request stop an oversized/error stream without
@@ -133,9 +140,8 @@ final class DocumentsApi {
         throw _invalidResponse();
       }
       final declared = _contentLength(response.headers);
-      if (original &&
-          declared != null &&
-          declared > WavValidator.maxFileBytes) {
+      final limit = original ? maxBytes ?? WavValidator.maxFileBytes : maxBytes;
+      if (limit != null && declared != null && declared > limit) {
         throw _invalidResponse();
       }
       final prefix = <int>[];
@@ -155,7 +161,7 @@ final class DocumentsApi {
             if (transfer.isCancelled) throw transfer.cancelError!;
             received += chunk.length;
             if (declared != null && received > declared ||
-                original && received > WavValidator.maxFileBytes) {
+                limit != null && received > limit) {
               throw _invalidResponse();
             }
             final needed = original
@@ -176,7 +182,7 @@ final class DocumentsApi {
                     Uint8List.fromList(prefix),
                   ).getUint32(4, Endian.little) +
                   8;
-              if (riffLength! > WavValidator.maxFileBytes) {
+              if (riffLength! > (limit ?? WavValidator.maxFileBytes)) {
                 throw _invalidResponse();
               }
             }

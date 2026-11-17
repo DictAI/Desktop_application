@@ -849,4 +849,67 @@ void main() {
       await noPartial();
     },
   );
+  test(
+    'caller quota rejects oversized declared original before file publication',
+    () async {
+      enqueue(response(wav(), declaredLength: wav().length));
+      await expectLater(
+        api.getOriginal('audio', temporaryDirectory: temporary, maxBytes: 128),
+        throwsA(isA<AppException>()),
+      );
+      await noPartial();
+    },
+  );
+
+  test(
+    'caller quota stops chunked original and cleans staging without Content-Length',
+    () async {
+      final bytes = wav();
+      enqueue(
+        ResponseBody(
+          Stream.fromIterable([
+            Uint8List.sublistView(bytes, 0, 8),
+            Uint8List.sublistView(bytes, 8, 44),
+            Uint8List.sublistView(bytes, 44),
+          ]),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['audio/wav'],
+          },
+        ),
+      );
+      await expectLater(
+        api.getOriginal('audio', temporaryDirectory: temporary, maxBytes: 128),
+        throwsA(isA<AppException>()),
+      );
+      await noPartial();
+    },
+  );
+
+  test(
+    'exact original quota succeeds and invalid quotas make no request',
+    () async {
+      final bytes = wav();
+      for (final quota in [0, -1, 1073741825]) {
+        expect(
+          () => api.getOriginal(
+            'audio',
+            temporaryDirectory: temporary,
+            maxBytes: quota,
+          ),
+          throwsArgumentError,
+        );
+      }
+      expect(adapter.requests, isEmpty);
+      enqueue(response(bytes));
+      final result = await api.getOriginal(
+        'audio',
+        temporaryDirectory: temporary,
+        maxBytes: bytes.length,
+      );
+      expect(result.byteLength, bytes.length);
+      await result.delete();
+      await noPartial();
+    },
+  );
 }

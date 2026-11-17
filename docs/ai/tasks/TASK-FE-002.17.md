@@ -10,10 +10,18 @@ depends_on: ["TASK-FE-002.16"]
 scope: ["test/features/ios_batch_regression_test.dart", "test/support/fakes.dart", "docs/testing/IOS_REGRESSION.ru.md", "docs/ai/tasks/TASK-FE-002.17.md"]
 planned_paths: ["test/features/ios_batch_regression_test.dart", "docs/testing/IOS_REGRESSION.ru.md"]
 reuses_tasks: ["TASK-FE-001.06", "TASK-FE-001.35", "TASK-FE-001.38"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.17: Закрепить iOS batch-сценарий регрессионными проверками
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

@@ -202,3 +202,13 @@ Main evidence: `/tmp/dictai-ios-session-main-build.log`,
 
 Физические критерии остаются обязательными. Review и Simulator PASS не дают
 автоматического accepted, commit/push/merge/release или перехода к .04/.05.
+
+
+## Приёмка с исключением физических проверок — 2026-11-17
+
+По прямому требованию пользователя TASK-FE-002.03 принята (accepted)
+на основании существующего host/Simulator evidence без подписи устройства.
+Physical lock/unlock, unavailable Keychain, account switch, reinstall/restore
+и iPhone HTTPS/auth остаются NOT RUN, но больше не блокируют эту приёмку
+и последующую разработку. Это решение не добавляет runtime PASS
+и не устраняет описанные выше retained/synchronized Keychain риски.

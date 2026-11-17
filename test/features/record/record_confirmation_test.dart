@@ -158,7 +158,8 @@ void main() {
       transport.requests.where((request) => request.method == 'POST');
 
   void guardTest(String description, Future<void> Function(WidgetTester) run) {
-    for (final mobile in [false, true]) {
+    // iOS pause/discard semantics are exercised in record_discard_test.dart.
+    for (final mobile in [false]) {
       testWidgets('$description (${mobile ? 'iOS' : 'desktop'})', (
         tester,
       ) async {

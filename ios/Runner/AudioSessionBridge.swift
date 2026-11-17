@@ -17,6 +17,14 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
   private var pendingStart: FlutterResult?
   private var channel: FlutterMethodChannel?
   private var events: FlutterEventChannel?
+  private var playbackChannel: FlutterMethodChannel?
+  private var playbackOwner: String?
+  private var playbackInterrupted = false
+  private var playbackObservers: [NSObjectProtocol] = []
+  private var pendingCapture: String?
+  private var pendingCaptureResult: FlutterResult?
+  private var pendingCaptureGeneration = 0
+
 
   init(messenger: FlutterBinaryMessenger) {
     super.init()
@@ -28,6 +36,12 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
       }
     }
     events?.setStreamHandler(self)
+    playbackChannel = FlutterMethodChannel(name: "com.dictai/ios_playback", binaryMessenger: messenger)
+    playbackChannel?.setMethodCallHandler { [weak self] call, result in
+      DispatchQueue.main.async { self?.handlePlayback(call, result: result) }
+    }
+    observePlayback()
+
   }
 
   func onListen(withArguments arguments: Any?, eventSink: @escaping FlutterEventSink) -> FlutterError? {
@@ -61,6 +75,11 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
     }
     if call.method == "start" {
       start(id: id, result: result)
+      return
+    }
+    if call.method == "dispose" && pendingCapture == id {
+      cancelPendingCapture("cancelled", "Recording cancelled")
+      result(nil)
       return
     }
     // Late cleanup for a previous Dart recorder cannot stop a newer recording.
@@ -139,6 +158,121 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
   private enum BridgeError: Error { case recording }
 
   private func start(id: String, result: @escaping FlutterResult) {
+    if owner == id && (status == "recording" || status == "paused") {
+      result(response())
+      return
+    }
+    guard owner == nil, pendingCapture == nil else {
+      result(FlutterError(code: "busy", message: "Audio session already reserved", details: nil))
+      return
+    }
+    guard let playback = playbackOwner else {
+      beginCapture(id: id, result: result)
+      return
+    }
+    // Reserve before crossing into Dart. A second Play/Start cannot acquire the
+    // session until every already-started plugin command has actually settled.
+    pendingCapture = id
+    pendingCaptureResult = result
+    pendingCaptureGeneration += 1
+    let operation = pendingCaptureGeneration
+    playbackChannel?.invokeMethod("stopForCapture", arguments: ["id": playback]) { [weak self] reply in
+      DispatchQueue.main.async {
+        guard let self = self, self.pendingCapture == id,
+              self.pendingCaptureGeneration == operation else { return }
+        if reply is FlutterError || self.playbackOwner != nil {
+          self.cancelPendingCapture("playback_cleanup", "Could not stop playback")
+          return
+        }
+        let completion = self.pendingCaptureResult
+        self.pendingCapture = nil
+        self.pendingCaptureResult = nil
+        if let completion = completion { self.beginCapture(id: id, result: completion) }
+      }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+      guard let self = self, self.pendingCapture == id,
+            self.pendingCaptureGeneration == operation else { return }
+      // Playback ownership survives a missing ACK until its real release.
+      self.cancelPendingCapture("playback_timeout", "Playback did not stop in time")
+    }
+  }
+
+  private func cancelPendingCapture(_ code: String, _ message: String) {
+    pendingCaptureGeneration += 1
+    let completion = pendingCaptureResult
+    pendingCapture = nil
+    pendingCaptureResult = nil
+    completion?(FlutterError(code: code, message: message, details: nil))
+  }
+
+  private func handlePlayback(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any], let id = args["id"] as? String, !id.isEmpty else {
+      result(FlutterError(code: "invalid_arguments", message: "Missing playback identity", details: nil))
+      return
+    }
+    switch call.method {
+    case "acquire":
+      guard owner == nil, pendingCapture == nil, !playbackInterrupted,
+            UIApplication.shared.applicationState == .active,
+            playbackOwner == nil || playbackOwner == id else {
+        result(FlutterError(code: "busy", message: "Audio session is unavailable", details: nil))
+        return
+      }
+      do {
+        try session.setCategory(.playback, mode: .default)
+        try session.setActive(true)
+        playbackOwner = id
+        result(nil)
+      } catch {
+        result(FlutterError(code: "playback_failed", message: "Could not acquire audio session", details: nil))
+      }
+    case "release":
+      guard playbackOwner == id else { result(nil); return }
+      do {
+        if owner == nil { try session.setActive(false, options: .notifyOthersOnDeactivation) }
+        playbackOwner = nil
+        result(nil)
+      } catch {
+        result(FlutterError(code: "playback_cleanup", message: "Could not release playback", details: nil))
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func stopPlaybackForSystem() {
+    guard let playback = playbackOwner else { return }
+    playbackChannel?.invokeMethod("stopForSystem", arguments: ["id": playback])
+  }
+
+  private func observePlayback() {
+    let center = NotificationCenter.default
+    playbackObservers.append(center.addObserver(forName: AVAudioSession.interruptionNotification,
+      object: session, queue: .main) { [weak self] notification in
+        guard let self = self, let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+        self.playbackInterrupted = type == .began
+        if type == .began { self.stopPlaybackForSystem() }
+      })
+    playbackObservers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification,
+      object: session, queue: .main) { [weak self] notification in
+        guard let self = self, let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+        if reason == .oldDeviceUnavailable || reason == .newDeviceAvailable ||
+            reason == .routeConfigurationChange || reason == .noSuitableRouteForCategory {
+          self.stopPlaybackForSystem()
+        }
+      })
+    playbackObservers.append(center.addObserver(forName: UIApplication.willResignActiveNotification,
+      object: nil, queue: .main) { [weak self] _ in self?.stopPlaybackForSystem() })
+  }
+
+  deinit {
+    playbackObservers.forEach { NotificationCenter.default.removeObserver($0) }
+  }
+
+  private func beginCapture(id: String, result: @escaping FlutterResult) {
     if owner == id && (status == "recording" || status == "paused") {
       result(response())
       return

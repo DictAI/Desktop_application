@@ -83,8 +83,12 @@ final class ProcessingNotifier
   final _timers = <ProcessingKey, Timer>{};
   final _tokens = <ProcessingKey, CancelToken>{};
   final _failures = <ProcessingKey, int>{};
+  final _nextReadAt = <ProcessingKey, DateTime>{};
   int _generation = 0;
   bool _stopped = false;
+  bool _suspended = false;
+
+  bool get isPollingSuspended => _suspended;
 
   bool _current(int generation, ProcessingKey key) =>
       mounted &&
@@ -95,7 +99,9 @@ final class ProcessingNotifier
       state.containsKey(key);
 
   bool _active(int generation, ProcessingKey key, CancelToken token) =>
-      _current(generation, key) && identical(_tokens[key], token);
+      !_suspended &&
+      _current(generation, key) &&
+      identical(_tokens[key], token);
 
   void track(ProcessingJob job) {
     if (!mounted ||
@@ -111,9 +117,10 @@ final class ProcessingNotifier
   }
 
   Future<void> restore({Iterable<ResultDto> results = const []}) async {
-    final generation = _generation;
     final jobs = await store.recover(results: results);
-    if (!mounted || generation != _generation || !_isCurrentSession()) return;
+    // Lifecycle suspension invalidates HTTP reads, not this session's journal.
+    // Recovered jobs may be added while suspended; track() defers their reads.
+    if (!mounted || _stopped || !_isCurrentSession()) return;
     for (final job in jobs) {
       track(job);
     }
@@ -126,8 +133,9 @@ final class ProcessingNotifier
   }
 
   void _schedule(int generation, ProcessingKey key, Duration delay) {
-    if (!_current(generation, key)) return;
+    if (_suspended || !_current(generation, key)) return;
     _timers.remove(key)?.cancel();
+    _nextReadAt[key] = DateTime.now().add(delay);
     _timers[key] = Timer(delay, () {
       _timers.remove(key);
       unawaited(refresh(key));
@@ -136,16 +144,20 @@ final class ProcessingNotifier
 
   Future<void> refresh(ProcessingKey key) async {
     final generation = _generation;
-    if (!_current(generation, key) || _tokens.containsKey(key)) return;
+    if (_suspended || !_current(generation, key) || _tokens.containsKey(key)) {
+      return;
+    }
     if (_tokens.length >= maxConcurrent) {
       _schedule(generation, key, pollInterval);
       return;
     }
     _timers.remove(key)?.cancel();
+    _nextReadAt.remove(key);
     final token = CancelToken();
     _tokens[key] = token;
     final previous = state[key]!;
     var job = previous.job;
+    SpeechStatusDto? latestStatus;
     Duration? next;
     try {
       var status = await _statusApi.getSpeechStatus(
@@ -158,6 +170,7 @@ final class ProcessingNotifier
           status.processingVersion != job.processingVersion) {
         throw _invalid;
       }
+      latestStatus = status;
       job = ProcessingJob(
         ownerId: job.ownerId,
         audioId: job.audioId,
@@ -188,6 +201,7 @@ final class ProcessingNotifier
               throw _invalid;
             }
             status = canonicalStatus;
+            latestStatus = status;
             phase = _phase(status);
           case CanonicalUnavailable(:final failure):
             throw failure;
@@ -283,7 +297,9 @@ final class ProcessingNotifier
           phase: canonical != null
               ? ProcessingPhase.ready
               : ProcessingPhase.unavailable,
-          status: lostAccess ? null : previous.status,
+          // R03 may succeed while the immutable canonical artifact is
+          // unavailable. Keep its validated independent summary projection.
+          status: lostAccess ? null : latestStatus ?? previous.status,
           canonical: canonical,
           error: error,
           retryIn: next,
@@ -334,16 +350,46 @@ final class ProcessingNotifier
       _timers.remove(key)?.cancel();
       _tokens.remove(key)?.cancel();
       _failures.remove(key);
+      _nextReadAt.remove(key);
     }
     state = Map.unmodifiable(
       Map.of(state)..removeWhere((key, _) => key.audioId == audioId),
     );
   }
 
-  /// Call synchronously before publishing another account/credential.
-  void stopSession() {
-    _stopped = true;
+  /// Freeze network polling without changing jobs, capture, or the login lease.
+  /// Generation fencing also rejects adapters that complete after cancellation.
+  void suspendPolling() {
+    if (!mounted || _stopped || _suspended) return;
+    _suspended = true;
     _generation++;
+    _cancelPolling(retainDeadlines: true);
+  }
+
+  void resumePolling() {
+    if (!mounted || _stopped || !_suspended || !_isCurrentSession()) return;
+    _suspended = false;
+    for (final progress in state.values) {
+      final error = progress.error;
+      final needsRead = error != null
+          ? _retryable(error)
+          : progress.phase == ProcessingPhase.waiting ||
+                progress.phase == ProcessingPhase.ready &&
+                    progress.status?.summaryStatus == SummaryStatus.pending;
+      if (!needsRead) continue;
+      final key = progress.job.key;
+      final remaining = _nextReadAt[key]?.difference(DateTime.now());
+      if (error != null && remaining != null && remaining > Duration.zero) {
+        // Entering the foreground does not bypass server rate limiting or
+        // the bounded error backoff. Explicit refresh remains available.
+        _schedule(_generation, key, remaining);
+      } else {
+        unawaited(refresh(key));
+      }
+    }
+  }
+
+  void _cancelPolling({bool retainDeadlines = false}) {
     for (final timer in _timers.values) {
       timer.cancel();
     }
@@ -352,6 +398,14 @@ final class ProcessingNotifier
     }
     _timers.clear();
     _tokens.clear();
+    if (!retainDeadlines) _nextReadAt.clear();
+  }
+
+  /// Call synchronously before publishing another account/credential.
+  void stopSession() {
+    _stopped = true;
+    _generation++;
+    _cancelPolling();
     _failures.clear();
     if (mounted) state = const {};
   }

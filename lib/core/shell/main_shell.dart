@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
+import '../../features/record/presentation/record_exit_guard.dart';
+import '../../features/record/presentation/record_notifier.dart';
 
 /// На iOS и узких окнах разделы доступны через нижнюю панель.
 class MainShell extends ConsumerWidget {
@@ -226,6 +228,19 @@ class _LogoutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Future<void> logout() async {
+      final recording = ref.exists(recordNotifierProvider)
+          ? ref.read(recordNotifierProvider.notifier)
+          : null;
+      final revision = recording?.recordingRevision;
+      if (Theme.of(context).platform == TargetPlatform.iOS &&
+          !await ref.read(recordExitGuardProvider).canLeave(context)) {
+        return;
+      }
+      if (!context.mounted) return;
+      if (recording != null &&
+          (!recording.mounted || revision != recording.recordingRevision)) {
+        return;
+      }
       await ref.read(authNotifierProvider.notifier).logout();
       if (context.mounted) context.go('/login');
     }

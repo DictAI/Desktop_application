@@ -7,13 +7,21 @@ owner: "unassigned"
 priority: "P1"
 delivery_stage: "ios"
 depends_on: ["TASK-FE-002.13"]
-scope: ["lib/features/results/data/ios_document_export.dart", "lib/features/results/presentation/result_detail_screen.dart", "lib/features/results/presentation/results_screen.dart", "ios/Runner/DocumentExportBridge.swift", "ios/Runner/AppDelegate.swift", "test/features/results/ios_document_export_test.dart", "ios/Runner.xcodeproj/project.pbxproj", "docs/ai/tasks/TASK-FE-002.14.md"]
-planned_paths: ["lib/features/results/data/ios_document_export.dart", "lib/features/results/presentation/result_detail_screen.dart", "ios/Runner/DocumentExportBridge.swift", "ios/Runner/AppDelegate.swift", "test/features/results/ios_document_export_test.dart", "ios/Runner.xcodeproj/project.pbxproj"]
+scope: ["lib/features/results/data/ios_document_export.dart", "lib/features/results/presentation/result_detail_screen.dart", "lib/features/results/presentation/results_screen.dart", "ios/Runner/DocumentExportBridge.swift", "ios/Runner/AppDelegate.swift", "test/features/results/ios_document_export_test.dart", "ios/Runner.xcodeproj/project.pbxproj", "docs/ai/tasks/TASK-FE-002.14.md", "test/features/results/ios_media_smoke_app.dart", "docs/testing/IOS_MEDIA.ru.md"]
+planned_paths: ["lib/features/results/data/ios_document_export.dart", "lib/features/results/presentation/result_detail_screen.dart", "ios/Runner/DocumentExportBridge.swift", "ios/Runner/AppDelegate.swift", "test/features/results/ios_document_export_test.dart", "ios/Runner.xcodeproj/project.pbxproj", "test/features/results/ios_media_smoke_app.dart", "docs/testing/IOS_MEDIA.ru.md"]
 reuses_tasks: ["TASK-FE-001.30", "TASK-FE-001.31"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.14: Экспортировать документы и WAV через iOS Files/share sheet
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

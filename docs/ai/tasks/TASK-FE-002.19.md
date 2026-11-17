@@ -10,10 +10,18 @@ depends_on: ["TASK-FE-002.18"]
 scope: ["docs/testing/IOS_RELEASE.ru.md", "ios/Runner/PrivacyInfo.xcprivacy", "ios/Runner/Info.plist", "ios/Runner.xcodeproj/project.pbxproj", "docs/ai/tasks/TASK-FE-002.19.md"]
 planned_paths: ["docs/testing/IOS_RELEASE.ru.md", "ios/Runner/PrivacyInfo.xcprivacy", "ios/Runner/Info.plist", "ios/Runner.xcodeproj/project.pbxproj"]
 reuses_tasks: ["TASK-FE-001.41", "TASK-FE-001.42"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.19: Подготовить iOS candidate и требования TestFlight/App Store
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

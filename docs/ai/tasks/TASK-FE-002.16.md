@@ -7,13 +7,21 @@ owner: "unassigned"
 priority: "P0"
 delivery_stage: "ios"
 depends_on: ["TASK-FE-002.15"]
-scope: ["lib/features/results/presentation/results_notifier.dart", "lib/features/results/presentation/result_detail_notifier.dart", "lib/features/results/data/original_audio_cache.dart", "lib/features/record/data/pending_upload_store.dart", "lib/features/results/data/pending_job_store.dart", "lib/shared/providers/providers.dart", "lib/features/record/presentation/anonymous_record_notifier.dart", "lib/features/record/presentation/label_speakers_modal.dart", "lib/features/record/data/audio_ingest_api.dart", "lib/features/record/data/anonymous_session_api.dart", "test/features/results/ios_account_cleanup_test.dart", "docs/ai/tasks/TASK-FE-002.16.md", "lib/core/storage/ios_file_policy.dart", "ios/Runner/StoragePolicyBridge.swift", "ios/Runner/AppDelegate.swift", "ios/Runner.xcodeproj/project.pbxproj", "test/core/storage/ios_file_policy_test.dart", "ios/RunnerTests/RunnerTests.swift"]
+scope: ["lib/features/results/presentation/results_notifier.dart", "lib/features/results/presentation/result_detail_notifier.dart", "lib/features/results/data/original_audio_cache.dart", "lib/features/record/data/pending_upload_store.dart", "lib/features/results/data/pending_job_store.dart", "lib/shared/providers/providers.dart", "lib/features/record/presentation/anonymous_record_notifier.dart", "lib/features/record/presentation/label_speakers_modal.dart", "lib/features/record/data/audio_ingest_api.dart", "lib/features/record/data/anonymous_session_api.dart", "test/features/results/ios_account_cleanup_test.dart", "docs/ai/tasks/TASK-FE-002.16.md", "lib/core/storage/ios_file_policy.dart", "ios/Runner/StoragePolicyBridge.swift", "ios/Runner/AppDelegate.swift", "ios/Runner.xcodeproj/project.pbxproj", "test/core/storage/ios_file_policy_test.dart", "ios/RunnerTests/RunnerTests.swift", "lib/features/record/data/dto/anonymous_session_dto.dart", "lib/features/record/data/ios_wav_import.dart", "test/features/record/ios_wav_import_test.dart", "lib/features/record/presentation/record_notifier.dart", "test/features/record/record_discard_test.dart"]
 planned_paths: ["lib/features/results/presentation/result_detail_notifier.dart", "lib/features/results/data/original_audio_cache.dart", "test/features/results/ios_account_cleanup_test.dart", "lib/core/storage/ios_file_policy.dart", "ios/Runner/StoragePolicyBridge.swift", "ios/Runner/AppDelegate.swift", "ios/Runner.xcodeproj/project.pbxproj", "test/core/storage/ios_file_policy_test.dart", "ios/RunnerTests/RunnerTests.swift"]
 reuses_tasks: ["TASK-FE-001.32", "TASK-FE-001.33", "TASK-FE-001.34"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.16: Завершить удаление, account isolation и cleanup iOS flow
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

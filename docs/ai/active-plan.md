@@ -1,3 +1,156 @@
+# Текущий этап — 2026-11-18
+
+Поручение: завершить работу предыдущего агента, выполнить push, продолжить
+другие доступные задачи ранее выбранной очереди; до 10 субагентов.
+Пользователь явно разрешил push 2026-11-17/18; необходимый commit также входит
+в это поручение. Остальная история запретов публикации ниже заменена этим
+поручением только для commit/push текущих изменений; release/merge не поручены.
+Посторонний `.DS_Store` сохраняется вне commit.
+
+TASK-FE-002.13 завершена в host/Simulator scope: status review, owner `/root`,
+независимый [REVIEW-FE-002.13-01](reviews/REVIEW-FE-002.13-01.md)
+reviewed/complete, F01 decoder stream errors и F02 planned_paths исправлены.
+97 targeted tests/format/analyze PASS (7 прежних info); native Simulator
+capture/timeout PASS, production main build7.4s/install/launch PASS. Physical
+criteria NOT RUN; accepted не назначается. Финальная host регрессия перед push: 738/738 PASS (33s), scoped format26 PASS,
+analyze PASS7 info. Финальный production main build8.4s/install/launch PASS,
+то есть сборка включает F01 fix. Локальные ссылки266/whitespace PASS.
+
+Очередь остаётся .14 → .15 → .16 → .17; .18/.19 проверяются на внешние blockers.
+.14–.17 пока не стартовали; до handoff разрешено read-only исследование.
+Coordinator `/root` единолично пишет active-plan/PLAN/decisions; source .13
+frozen. Reviewer `/root/media_review_finish` писал только .13-01 report.
+
+Baseline377: `/var/folders/nk/dn15wj451d90zxf_gxkbdgjr0000gn/T/dictai-finish-20261117-ye2qw6pn/`.
+Commit/push включает относящиеся source/tests/platform/task/review changes;
+посторонний `.DS_Store`, локальные caches/build artifacts не включаются.
+Исторические handoff-записи ниже не являются текущими назначениями.
+
+# Максимальная выбранная iOS очередь — 2026-11-17
+
+.12-01 independent review **reviewed/complete**,103 tests/format3 PASS,
+открытых findings нет. .13 получает solewrite exact expanded cache/player/
+native handshake/test-harness scope; reviewer media_review. .12 source frozen.
+
+Текущий handoff: **TASK-FE-002.13 in_progress**, sole writer `/root/media_prep`; scope —
+frontmatter карточки. Reviewer `/root/media_review`, `REVIEW-FE-002.13-01`.
+
+.12 viewer implemented/frozen/review:103 tests/format3/analyze PASS7info.
+Exact50MiB canonical JSON decoded/rendered с ограниченным видимым layout;
+10k segments, IDs/labels/UNKNOWN/overlap/fullmicroseconds/clipboard/scale2.
+Hostdebug farjump22–27s — известное ограничение; phoneFPS/peakRAM/VoiceOver
+NOT RUN. Final .12-01 independent tests/doc delta ожидается; native build
+повторится в .13, .11 build не выдаётся за новую .12 проверку.
+
+До .13/.14 handoff добавлены scope/planned_paths test-only native smoke
+`test/features/results/ios_media_smoke_app.dart` и `docs/testing/IOS_MEDIA.ru.md`.
+Это необходимые Simulator evidence новых Swift handshake/share channels:
+synthetic WAV, callback/ack/capture ordering, safe failure и owned cleanup;
+.14 дополняет system sheet/cancel/iPad anchor без внешнего provider write.
+Main восстанавливается после smoke; hardware/provider PASS не обещаются.
+
+.11-01 independent review **reviewed/complete**; F01/F02 fixed with evidence,
+открытых findings нет. Host checks/review gate пройден, .12 получает sole write
+transcript/detail viewer scope. .11 source/tests frozen до следующего handoff.
+
+.11 frozen/review: detail route/реальный canonical/independent summary готовы.
+Author88 tests/format7/analyze PASS7info; reviewer88/format7 PASS, F01/F02
+исправлены с regression evidence, открытых source findings нет. Root **704
+полных host tests PASS**, Simulator main build12.8s/install/launch PASS.
+Final .11-01 organizational delta передана; physical/backend E2E NOT RUN.
+
+.11 review F02 P2 подтвердил скрытие доступного summary при canonical503:
+tracker терял свежий validated status. До source edit coordinator разрешил
+необходимую scope поправку processing_notifier.dart; sole writer .11 сам
+добавляет его в own frontmatter до изменения. Fix сохраняет validated status
+при artifact error, но очищает при lost access; второй poller не создаётся.
+F01 temp-directory failure также исправляется в выбранном .11 scope.
+
+До будущих write handoffs уточнён exact scope выбранных целей: .13 включает
+DocumentsApi/его существующий test для ограничения получаемого потока квотой
+(без wire/API changes); .16 включает record_notifier/record_discard_test для
+owned unposted WAV cleanup на logout/401, retired anonymous DTO и importer/test
+для file policy. Это необходимые consumers/checks уже выбранных cache/cleanup
+требований, без новых продуктовых задач; новые writers ещё не стартовали.
+
+Подготовительное исследование .18/.19 (не выполнение E2E): verifier
+`/root/verification_prep` read-only подтвердил наличие paired iPhone13mini/iOS18.5,
+но codesigning identities=0, team отсутствует, DDI/tunnel unavailable.
+Никаких device/signing mutations. .03 exception принят, .18 hardware evidence
+по-прежнему NOT RUN. Backend `/Users/mxdnght/dictai`, HEAD
+`92ad6e4572a3b12a601ba3ab7e5cc385a21694ae` изучен read-only: account-delete
+HTTP route отсутствует в auth/gateway (DB DeleteUser helper не HTTP capability).
+Это Store release gap; endpoint/task в backend не создаётся. Runtime operator
+prerequisites, два тестовых аккаунта, signing и текущий device E2E не доказаны
+историческим STG synthetic smoke. Privacy audit также подготовлен; реальные
+archive/Store answers/URLs ждут evidence, не выдумываются. Source evidence
+не является runtime PASS.
+
+.09/.10 independent review .09-01 **reviewed/complete**, findings нет.
+Host gate пройден; .11 получает sole write exact scope. .09 source/tests
+frozen; physical/backend criteria не подменяются этим разрешением.
+
+.09 host scope implemented/frozen: tests122/format5/analyze PASS
+(7 прежних info). Включены .10 iOS/desktop library regressions; .10 source
+сохранён, coordinator дополнил интеграционную карточку. Independent reviewer
+повторил122 tests/format5 PASS, source findings нет; final .09-01 doc delta
+передана. Physical/backend E2E NOT RUN; .09/.10 не accepted.
+
+.20 independent implementation review .20-02 **reviewed/complete**,
+открытых actionable findings нет; reviewer повторил102 tests/format9 PASS.
+.09 получает sole write после этого gate; .20 source/tests frozen.
+
+.20 handoff/freeze: 102 targeted tests PASS, format9 PASS, analyze PASS/7
+прежних info. Final production main Simulator build PASS7.3s, install/launch
+PASS. Source/tests/card автора frozen; root принимает учётные summaries.
+Physical criteria NOT RUN; .20 status review, accepted не назначен.
+
+Пользователь поручил максимум оставшихся задач и разрешил до 10 субагентов.
+Выбрана вся очередь .20 → .09 → завершение .10 → .11–.19; базовые .01–.08
+сохраняются. .03 accepted с исключением физических проверок по прямому
+требованию пользователя; её NOT RUN и Keychain risks сохраняются.
+Host/Simulator scope продолжается после checks и независимого review;
+physical criteria остальных задач не принимаются автоматически. .18/.19
+требуют внешнего evidence, без него blocked. Commit/push/release не поручены.
+
+Baseline: `/var/folders/nk/dn15wj451d90zxf_gxkbdgjr0000gn/T/dictai-ios-max-20261117-mx03n09p/` (357 файлов), initial patch/status/HEAD.
+Исходный посторонний diff — только .DS_Store, сохранить побайтово.
+Coordinator primary-agent единолично пишет этот реестр, PLAN, decisions,
+.03 task/IOS_SESSION и интеграционные summaries. Каждый этап передаётся
+одному writer после checks/review предыдущего; права записи — в таблице ниже.
+
+| Task/scope | Owner | Write rights |
+|---|---|---|
+| TASK-FE-002.20 (review) | /root/record_controls | Source/tests frozen; coordinator summaries; fixes through handoff |
+| TASK-FE-002.09 (review) | /root/recovery_prep | Source/tests frozen; coordinator summaries; fixes through handoff |
+| TASK-FE-002.11 (review) | /root/detail_prep | Source/tests frozen; coordinator summaries; fixes through handoff |
+| TASK-FE-002.12 (review) | /root/detail_prep | Source/tests frozen; coordinator summaries; fixes through handoff |
+| TASK-FE-002.13 (in_progress) | /root/media_prep | Exact frontmatter scope/card; sole writer |
+| TASK-FE-002.14 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| TASK-FE-002.15 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| TASK-FE-002.16 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| TASK-FE-002.17 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| TASK-FE-002.18 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| TASK-FE-002.19 (draft) | unassigned | Await dependency checks/review and explicit write handoff |
+| .03 acceptance; shared records | primary-agent | .03/IOS_SESSION, registry/PLAN/decisions, integration task summaries |
+
+| Review ID | Owner | Path | Состояние резерва |
+|---|---|---|---|
+| REVIEW-FE-002.03-03 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.03-03.md | created |
+| REVIEW-FE-002.20-02 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.20-02.md | created |
+| REVIEW-FE-002.09-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.09-01.md | created |
+| REVIEW-FE-002.11-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.11-01.md | created |
+| REVIEW-FE-002.12-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.12-01.md | created |
+| REVIEW-FE-002.13-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.13-01.md | created |
+| REVIEW-FE-002.14-01 | /root/media_review | docs/ai/reviews/REVIEW-FE-002.14-01.md | reserved |
+| REVIEW-FE-002.15-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.15-01.md | reserved |
+| REVIEW-FE-002.16-01 | /root/platform_review | docs/ai/reviews/REVIEW-FE-002.16-01.md | reserved |
+| REVIEW-FE-002.17-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.17-01.md | reserved |
+| REVIEW-FE-002.18-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.18-01.md | reserved |
+| REVIEW-FE-002.19-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.19-01.md | reserved |
+
+Ниже сохранена история; новые explicit selection/acceptance имеют приоритет.
+
 # Дополнение управления записью — 2026-11-17
 
 Пользователь просит добавить в задачи новый сценарий паузы/отправки/отмены.

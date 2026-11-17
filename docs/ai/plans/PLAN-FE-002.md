@@ -3,7 +3,7 @@ id: "PLAN-FE-002"
 title: "DictAI для iOS/iPhone на существующем Flutter и batch API"
 status: "in_progress"
 owner: "primary-agent"
-selected_tasks: ["TASK-FE-002.01", "TASK-FE-002.02", "TASK-FE-002.03", "TASK-FE-002.04", "TASK-FE-002.05", "TASK-FE-002.06", "TASK-FE-002.07", "TASK-FE-002.08", "TASK-FE-002.10"]
+selected_tasks: ["TASK-FE-002.01", "TASK-FE-002.02", "TASK-FE-002.03", "TASK-FE-002.04", "TASK-FE-002.05", "TASK-FE-002.06", "TASK-FE-002.07", "TASK-FE-002.08", "TASK-FE-002.09", "TASK-FE-002.10", "TASK-FE-002.11", "TASK-FE-002.12", "TASK-FE-002.13", "TASK-FE-002.14", "TASK-FE-002.15", "TASK-FE-002.16", "TASK-FE-002.17", "TASK-FE-002.18", "TASK-FE-002.19", "TASK-FE-002.20"]
 planning_authorized: true
 implementation_authorized: true
 frontend_commit: "44ace4d"
@@ -11,6 +11,75 @@ requirements_revision: "ios-2026-11-16"
 ---
 
 # PLAN-FE-002: DictAI для iOS/iPhone
+
+## Текущий gate .13 — 2026-11-17
+
+Owner `/root`, status review: host97 PASS после decoder-stream fix, analyze PASS
+с семью прежними info, native Simulator capture/timeout PASS5.3s/10.7s;
+production main build7.4s/install/launch PASS перед Dart-only fix. Независимый
+REVIEW-FE-002.13-01 reviewed/complete, F01/F02 исправлены; physical criteria NOT RUN.
+Final integration 2026-11-18: полный `flutter test --no-pub --reporter expanded`
+738/738 PASS33s, scoped format26 PASS, local links266/whitespace PASS; final
+production main Simulator build8.4s/install/launch PASS после F01.
+Host/Simulator review gate пройден. Пользователь разрешил commit/push текущего
+результата и продолжение доступных выбранных задач (2026-11-18). Следующая .14
+получает sole write после сохранения текущего результата; accepted не назначается.
+
+## История выбранного максимума — 2026-11-17
+
+.12-01 independent review **reviewed/complete**,103 tests/format3 PASS,
+открытых findings нет. .13 получает solewrite exact expanded cache/player/
+native handshake/test-harness scope; reviewer media_review. .12 source frozen.
+
+.12 viewer implemented/frozen/review:103 tests/format3/analyze PASS7info.
+Exact50MiB canonical JSON decoded/rendered с ограниченным видимым layout;
+10k segments, IDs/labels/UNKNOWN/overlap/fullmicroseconds/clipboard/scale2.
+Hostdebug farjump22–27s — известное ограничение; phoneFPS/peakRAM/VoiceOver
+NOT RUN. Final .12-01 independent tests/doc delta ожидается; native build
+повторится в .13, .11 build не выдаётся за новую .12 проверку.
+
+.11-01 independent review **reviewed/complete**; F01/F02 fixed with evidence,
+открытых findings нет. Host checks/review gate пройден, .12 получает sole write
+transcript/detail viewer scope. .11 source/tests frozen до следующего handoff.
+
+.11 frozen/review: detail route/реальный canonical/independent summary готовы.
+Author88 tests/format7/analyze PASS7info; reviewer88/format7 PASS, F01/F02
+исправлены с regression evidence, открытых source findings нет. Root **704
+полных host tests PASS**, Simulator main build12.8s/install/launch PASS.
+Final .11-01 organizational delta передана; physical/backend E2E NOT RUN.
+
+.09/.10 independent review .09-01 **reviewed/complete**, findings нет.
+Host gate пройден; .11 получает sole write exact scope. .09 source/tests
+frozen; physical/backend criteria не подменяются этим разрешением.
+
+.09 host scope implemented/frozen: tests122/format5/analyze PASS
+(7 прежних info). Включены .10 iOS/desktop library regressions; .10 source
+сохранён, coordinator дополнил интеграционную карточку. Independent reviewer
+повторил122 tests/format5 PASS, source findings нет; final .09-01 doc delta
+передана. Physical/backend E2E NOT RUN; .09/.10 не accepted.
+
+.20 independent implementation review .20-02 **reviewed/complete**,
+открытых actionable findings нет; reviewer повторил102 tests/format9 PASS.
+.09 получает sole write после этого gate; .20 source/tests frozen.
+
+Первый handoff .20: pause/send/discard реализованы, tests102/format9/analyze
+PASS (7 прежних info), production main Simulator build7.3s/install/launch
+PASS. Статус review; независимый .20-02 завершает организационную delta.
+Physical checks NOT RUN, accepted не назначен.
+
+Пользователь выбрал максимальное доступное число оставшихся задач и до 10
+субагентов. Вся очередь .20 → .09 → завершение .10 → .11–.19 выбрана.
+Реализация идёт последовательно по общим файлам после host/Simulator checks
+и независимого review предыдущего scope; подготовительное исследование
+независимых scopes допускается параллельно. Device-only проверки остаются
+NOT RUN и не заменяются host evidence; это не запрет выбранной разработки.
+.18/.19 не объявляются завершёнными без реального внешнего evidence.
+
+По прямому решению пользователя TASK-FE-002.03 **accepted с исключениями**:
+подпись/устройство и physical lock/unlock/reinstall/restore/account-switch/HTTPS
+не требуются для её приёмки; прежние NOT RUN и известные Keychain ограничения
+сохранены. Это снимает dependency blocker .03, без нового runtime PASS.
+Commit/push/release не выбраны. Ниже — исторические записи прошлых поручений.
 
 ## Дополнение требований записи — 2026-11-17
 
@@ -206,18 +275,18 @@ Owner unassigned относится к будущей реализации; plan
 |---|---|---|---|---|---|
 | [TASK-FE-002.01](../tasks/TASK-FE-002.01.md) | Зафиксировать iOS toolchain, deployment target и manifest Runner | review | none | /root/ios_baseline | Exact paths в карточке |
 | [TASK-FE-002.02](../tasks/TASK-FE-002.02.md) | Добавить iOS Runner и воспроизводимую simulator-сборку | review | TASK-FE-002.01 | primary-agent | Exact paths в карточке |
-| [TASK-FE-002.03](../tasks/TASK-FE-002.03.md) | Подтвердить iOS Keychain, авторизацию и HTTPS | blocked | TASK-FE-002.02 | primary-agent | Exact paths в карточке |
+| [TASK-FE-002.03](../tasks/TASK-FE-002.03.md) | Подтвердить iOS Keychain, авторизацию и HTTPS | accepted | TASK-FE-002.02 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.04](../tasks/TASK-FE-002.04.md) | Сделать мобильную навигацию и экран входа | review | TASK-FE-002.03 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.05](../tasks/TASK-FE-002.05.md) | Адаптировать workspaces и контакты для iPhone | review | TASK-FE-002.04 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.06](../tasks/TASK-FE-002.06.md) | Добавить iOS микрофон, background recording и audio interruptions | review | TASK-FE-002.05 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.07](../tasks/TASK-FE-002.07.md) | Импортировать WAV из Files в sandbox приложения | review | TASK-FE-002.06 | primary-agent | Exact paths в карточке |
 | [TASK-FE-002.08](../tasks/TASK-FE-002.08.md) | Собрать мобильный экран записи и безопасный Stop/уход | review | TASK-FE-002.07 | primary-agent | Exact paths в карточке |
-| [TASK-FE-002.20](../tasks/TASK-FE-002.20.md) | Изменить управление записью: пауза, отправка и подтверждённая отмена | draft | TASK-FE-002.08 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.09](../tasks/TASK-FE-002.09.md) | Адаптировать upload и восстановление к iOS suspend/resume | draft | TASK-FE-002.20 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.20](../tasks/TASK-FE-002.20.md) | Изменить управление записью: пауза, отправка и подтверждённая отмена | review | TASK-FE-002.08 | /root/record_controls | Exact paths в карточке |
+| [TASK-FE-002.09](../tasks/TASK-FE-002.09.md) | Адаптировать upload и восстановление к iOS suspend/resume | review | TASK-FE-002.20 | /root/recovery_prep | Exact paths в карточке |
 | [TASK-FE-002.10](../tasks/TASK-FE-002.10.md) | Адаптировать библиотеку результатов и восстановление отправок | review | TASK-FE-002.09 | primary-agent | Exact paths в карточке |
-| [TASK-FE-002.11](../tasks/TASK-FE-002.11.md) | Добавить единый мобильный экран результата | draft | TASK-FE-002.10 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.12](../tasks/TASK-FE-002.12.md) | Показать большой транскрипт с говорящими и таймкодами | draft | TASK-FE-002.11 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | draft | TASK-FE-002.12 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.11](../tasks/TASK-FE-002.11.md) | Добавить единый мобильный экран результата | review | TASK-FE-002.10 | /root/detail_prep | Exact paths в карточке |
+| [TASK-FE-002.12](../tasks/TASK-FE-002.12.md) | Показать большой транскрипт с говорящими и таймкодами | review | TASK-FE-002.11 | /root/detail_prep | Exact paths в карточке |
+| [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | review | TASK-FE-002.12 | /root | Exact paths в карточке |
 | [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | draft | TASK-FE-002.13 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | draft | TASK-FE-002.14 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | draft | TASK-FE-002.15 | unassigned | Exact paths в карточке |

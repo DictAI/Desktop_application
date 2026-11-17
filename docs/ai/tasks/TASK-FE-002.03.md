@@ -2,7 +2,7 @@
 id: "TASK-FE-002.03"
 plan: "PLAN-FE-002"
 title: "Подтвердить iOS Keychain, авторизацию и HTTPS"
-status: "blocked"
+status: "accepted"
 owner: "primary-agent"
 priority: "P0"
 delivery_stage: "ios"
@@ -14,6 +14,18 @@ implementation_selected: true
 ---
 
 # TASK-FE-002.03: Подтвердить iOS Keychain, авторизацию и HTTPS
+
+## Явная приёмка с исключениями — 2026-11-17
+
+Пользователь потребовал считать .03 выполненной, несмотря на отсутствие
+подготовленной подписи устройства. Статус **accepted** назначен по этому
+явному решению: принят реализованный и проверенный host/Simulator scope.
+Невыполненные physical lock/unlock, недоступность Keychain, account switch,
+reinstall/restore и iPhone HTTPS/auth исключены из обязательных gates этой
+приёмки. Их Verification остаётся NOT RUN, unchecked критерии не выданы за PASS.
+Известное восстановление retained/synchronized Keychain items после cold start
+сохраняется как ограничение. Dependency blocker .03 снят; подпись, entitlements,
+ATS и код этим решением не меняются. Последующий текст — прежнее evidence.
 
 ## Goal
 

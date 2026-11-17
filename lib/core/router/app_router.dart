@@ -7,6 +7,7 @@ import '../../features/record/presentation/record_screen.dart';
 import '../../features/workspace/presentation/workspaces_screen.dart';
 import '../../features/workspace/presentation/workspace_detail_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
+import '../../features/results/presentation/result_detail_screen.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
 import 'auth_listenable.dart';
 import '../../features/workspace/data/dto/workspace_dto.dart';
@@ -60,8 +61,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/results',
-            pageBuilder: (_, __) =>
-                const NoTransitionPage(child: ResultsScreen()),
+            pageBuilder: (context, _) => NoTransitionPage(
+              child: ResultsScreen(
+                onOpen: (audioId, jobId) =>
+                    context.go(resultDetailLocation(audioId, jobId: jobId)),
+              ),
+            ),
+            routes: [
+              GoRoute(
+                path: ':audioId',
+                pageBuilder: (_, state) => NoTransitionPage(
+                  child: ResultDetailScreen(
+                    audioId: state.pathParameters['audioId']!,
+                    jobId: state.uri.queryParameters['job_id'],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

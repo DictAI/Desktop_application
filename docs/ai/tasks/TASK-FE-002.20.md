@@ -2,18 +2,75 @@
 id: "TASK-FE-002.20"
 plan: "PLAN-FE-002"
 title: "Изменить управление записью: пауза, отправка и подтверждённая отмена"
-status: "draft"
-owner: "unassigned"
+status: "review"
+owner: "/root/record_controls"
 priority: "P1"
 delivery_stage: "ios"
 depends_on: ["TASK-FE-002.08"]
 scope: ["lib/features/record/presentation/record_screen.dart", "lib/features/record/presentation/record_notifier.dart", "lib/features/record/presentation/record_exit_guard.dart", "lib/features/record/presentation/discard_recording_screen.dart", "lib/features/record/presentation/discard_recording_dialog.dart", "lib/core/router/app_router.dart", "lib/core/shell/main_shell.dart", "test/features/record/ios_record_flow_test.dart", "test/features/record/record_confirmation_test.dart", "test/features/record/record_discard_test.dart", "test/core/router/ios_navigation_test.dart", "docs/ai/tasks/TASK-FE-002.20.md"]
 planned_paths: ["lib/features/record/presentation/discard_recording_screen.dart", "lib/features/record/presentation/discard_recording_dialog.dart", "test/features/record/record_discard_test.dart"]
 reuses_tasks: ["TASK-FE-002.06", "TASK-FE-002.08", "TASK-FE-001.49"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.20: Изменить управление записью: пауза, отправка и подтверждённая отмена
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
+
+## Result реализации — 2026-11-17
+
+Sole writer `/root/record_controls` реализовал exact .20 scope. Изменены
+`record_screen.dart`, `record_notifier.dart`, `record_exit_guard.dart`,
+`main_shell.dart`, `ios_record_flow_test.dart`, `record_confirmation_test.dart`
+и эта карточка; созданы `discard_recording_screen.dart`,
+`discard_recording_dialog.dart`, `record_discard_test.dart`.
+`app_router.dart` и `ios_navigation_test.dart` прочитаны и не менялись:
+существующий `onExit` принимает FutureOr<bool> нового guard, сохраняя намерение
+GoRouter (route/query/extra) до успешного удаления. API/native/dependencies,
+пользовательские WAV, журналы и desktop Stop/guard сохранены.
+
+На iOS основная кнопка ставит capture на паузу/возобновляет его; на паузе
+появляются зелёная текстовая «Отправить» и крестик. Отправка использует один
+существующий finish/journal/V2 POST с сохранённым snapshot options. Крестик
+показывает окно удаления и остаётся в Record, уход/намеренный logout — отдельную
+страницу отмены; «Остаться»/Back/закрытие не изменяют capture/паузу. Forced401
+не ждёт подтверждения, старые страницы/диалоги закрываются по identity.
+Operation revision не позволяет позднему подтверждению завершить новый flow.
+
+Новый идемпотентный discard резервирует действие, ждёт pause/resume и native
+dispose, затем удаляет ровно собственный capture source. Не вызывает finish,
+journal или POST; не удаляет родительскую папку/соседние/импортированные файлы.
+Ошибки dispose/удаления сохраняют ownership и явный повтор удаления; Send,
+Start и Resume остаются заблокированными до cleanup. Interruption во время
+подтверждения сохраняется, открытия окон не запускают скрытый Stop/Resume.
+
+Status review означает передачу готового host implementation на независимую
+проверку [REVIEW-FE-002.20-02](../reviews/REVIEW-FE-002.20-02.md).
+Полная .20 не verified/accepted: физический iPhone/реальный swipe/VoiceOver,
+interruption и кнопочные сценарии на устройстве не выполнялись. Отдельная
+приёмка .03 с physical exceptions не выдаётся за hardware PASS этой задачи.
+
+## Verification реализации — 2026-11-17
+
+Cwd всех команд `/Users/mxdnght/dictai-app`, macOS, закреплённый SDK
+`/tmp/dictai-flutter-3.41.3` (Flutter3.41.3/Dart3.11.1), подготовленный lock.
+Команды автора `/root/record_controls`, Simulator evidence отдельно от root.
+
+| Command / scenario | Actual | Status | Limitation |
+|---|---|---|---|
+| `/tmp/dictai-flutter-3.41.3/bin/flutter test --no-pub test/features/record/record_discard_test.dart test/features/record/ios_record_flow_test.dart test/features/record/record_confirmation_test.dart test/core/router/ios_navigation_test.dart test/features/record/ios_audio_capture_test.dart test/features/record/ordinary_flow_test.dart test/features/record/anonymous_flow_test.dart test/features/workspace/workspace_record_start_test.dart --reporter expanded` | 102/102 tests, exit0; новый discard suite23 cases | PASS | Host/fake capture/channel/HTTP и synthetic WAV; не устройство |
+| `dart format --output=none --set-exit-if-changed` с девятью изменёнными/новыми Dart paths, перечисленными в Result | 9 files, 0 changed, exit0 | PASS | Dart SDK по закреплённому пути выше |
+| `/tmp/dictai-flutter-3.41.3/bin/flutter analyze --no-pub --no-fatal-infos` | exit0, 7 прежних info, 0 errors/warnings, новых info нет | PASS | Семь прежних info вне .20 scope не исправляются |
+| Initial new test harness runs | FAIL debug platform override lifecycle и pending fixture auth timers; переведён на explicit iOS theme и teardown внутри widget callback; final102 PASS | FAIL, исторический | Ошибки нового fixture, не заявлены успешными прогонами |
+| Simulator production main build/install/launch/render, root | Intermediate build7.9s и build7.0s PASS, финальный repeat после revision hardening выполняет coordinator | PASS, intermediate | Idle render smoke; не реальный mic/buttons, финальный build evidence добавляет root |
+| Physical iPhone pause/resume/send/discard, navigation swipe/VoiceOver/interruption | Не выполнялось, подготовленной подписи нет | NOT RUN | Full physical acceptance открыта |
+| Independent implementation review .20-02 | Передано `/root/acceptance_review`, source/tests frozen | IN REVIEW | Итог в назначенном report; self-check не заменяет review |
 
 ## Goal
 
@@ -21,8 +78,9 @@ implementation_selected: false
 явно отправлять WAV либо удалять текущую запись с подтверждением. Уход с экрана
 активной или приостановленной записи предлагает отменить её и выйти.
 
-Это новая задача поверх базовой .08. Текущее поручение — добавить требования
-в задачи; реализация, проверки приложения и приёмка ещё не выбраны.
+Это новая задача поверх базовой .08; реализация выбрана последующим поручением
+2026-11-17. Код и host tests готовы, независимое review выполняется; полные
+physical criteria и пользовательская приёмка не заявляются.
 
 ## Context
 
@@ -115,7 +173,7 @@ Scope будущей реализации перечислен точно во f
 scope не назначается. Пересечения .06/.08/.09 выполняются последовательно:
 .08 → .20 → .09; эта карточка не запускает .09 автоматически.
 
-## Verification
+## Исторический план Verification
 
 Cwd: `/Users/mxdnght/dictai-app`; закреплённый Flutter 3.41.3 / Dart 3.11.1,
 подготовленный lock без обновления SDK/packages. Команды ниже — план реализации.
@@ -143,7 +201,7 @@ Cwd: `/Users/mxdnght/dictai-app`; Python3/Ruby Psych, Git, macOS.
 reviewer `/root/record_controls_plan_review`; итоговые completion/findings — в отчёте.
 Ранее завершённые runtime checks .08 не переносятся на новые требования.
 
-## Result
+## Исторический Result планирования
 
 2026-11-17: добавлена draft-карточка по прямому поручению пользователя.
 Обновлены iOS UX/ADR, очередь плана, ссылка из .08 и dependency .09.
@@ -155,3 +213,16 @@ Documentation checks и independent planning review фиксируются в а
 разделе PLAN-FE-002/active-plan и
 [REVIEW-FE-002.20-01](../reviews/REVIEW-FE-002.20-01.md).
 Новые UI-сценарии не implemented/verified/accepted. Commit/push/release не поручены.
+
+
+## Итог coordinator build — 2026-11-17
+
+Cwd frontend, macOS/Xcode26.5, pinned Flutter3.41.3. После final freeze
+`python3 /tmp/dictai_ios_max_build.py` (production main, Simulator debug,
+--no-pub, сохранённый public HTTPS define без credentials): PASS exit0,
+Xcode7.3s. `xcrun simctl install`/`launch --terminate-running-process`: PASS.
+Предыдущий render Record idle визуально проверен, screenshot вне repo
+`/tmp/dictai-ios-max-screen.png`; аппаратная запись и interaction smoke
+не выполнялись. Intermediate builds7.9s/7.0s не заменяют final build.
+Независимый reviewer повторил102 tests/format9 PASS, исходники/tests frozen.
+Полная physical readiness не заявлена; accepted отсутствует.

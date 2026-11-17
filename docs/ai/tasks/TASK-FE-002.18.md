@@ -10,10 +10,18 @@ depends_on: ["TASK-FE-002.17"]
 scope: ["docs/testing/IOS_DEVICE_E2E.ru.md", "docs/testing/IOS_BACKEND_GATE.ru.md", "docs/ai/tasks/TASK-FE-002.18.md"]
 planned_paths: ["docs/testing/IOS_DEVICE_E2E.ru.md", "docs/testing/IOS_BACKEND_GATE.ru.md"]
 reuses_tasks: ["TASK-FE-001.36", "TASK-FE-001.37", "TASK-FE-001.38", "TASK-FE-001.39", "TASK-FE-001.40", "TASK-FE-001.42"]
-implementation_selected: false
+implementation_selected: true
 ---
 
 # TASK-FE-002.18: Подтвердить реальный iPhone E2E и platform readiness
+
+## Текущее поручение — 2026-11-17
+
+Пользователь выбрал оставшуюся очередь для максимально доступной реализации
+с до 10 субагентами. Эта задача выбрана; старт записи требует назначения
+точного owner и завершения checks/review предыдущего implementation scope.
+Physical evidence фиксируется отдельно и не выдумывается. Прежние записи
+«не выбрана» ниже описывают planning baseline и заменены этим поручением.
 
 ## Goal
 

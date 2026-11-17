@@ -15,6 +15,27 @@ implementation_selected: true
 
 # TASK-FE-002.10: Адаптировать библиотеку результатов и восстановление отправок
 
+
+## Интеграция recovery .09 — 2026-11-17
+
+Текущая очередь выбрана пользователем целиком. .03 accepted с physical
+исключениями; .09 host implementation готова и independently проверяется.
+Прежние ниже «.09 не выбрана»/«.03 blocked» относятся к прошлому этапу.
+.10 owner primary-agent, source/tests этой задачи не менялись в данном этапе.
+
+Cwd frontend/macOS arm64/Flutter3.41.3/Dart3.11.1. Автор .09 выполнил
+`flutter test --no-pub --reporter expanded` с ios_upload_recovery,
+processing_recovery, pending_upload_store, ios_results_library, results_library,
+ordinary_flow, anonymous_flow, record_discard: **122/122 PASS**; exact paths
+и команда — в [карточке .09](TASK-FE-002.09.md). Независимый reviewer повторил
+те же122 tests/format5 PASS. Оба iOS/desktop library suites подтверждают
+интеграцию существующего списка, recovery и explicit retry без нового POST
+при восстановлении accepted jobs. Это host fixtures, не реальный R01/device E2E.
+
+Физический iPhone/VoiceOver/реальный provider/backend recovery **NOT RUN**.
+Полная readiness и accepted .10 не заявлены. Host scope зависимости .10
+допускает выбранную .11 после итогового [review .09/.10](../reviews/REVIEW-FE-002.09-01.md).
+
 ## Интеграционная Verification / Result — 2026-11-17
 
 Текущий sole writer — `primary-agent`, принявший handoff прежних исполнителей.
