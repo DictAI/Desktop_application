@@ -79,3 +79,82 @@ Native build/Simulator phases выполняет координатор; до я
 5.3s/10.7s PASS. Затем production main build7.4s PASS. Исправление derived
 stream decoder errors проверено regression/97 targeted host tests; Swift
 handshake после этих smoke не менялся. Physical ограничения выше сохраняются.
+
+
+## iOS export — TASK-FE-002.14
+
+В detail iOS действие «Скачать и поделиться» предлагает transcript TXT/PDF,
+summary TXT/PDF и original WAV. Transcript/summary status независимы; разрешение
+попытки download не означает наличия каждого PDF. Перед system sheet требуется
+реальный validated200 соответствующего документа. API document-unavailable,
+partial/MIME/content validation и network failure показываются безопасно без sheet.
+Документы идут через общий авторизованный DocumentsApi, original без job query;
+публичные URL/token links и новые API не добавлялись.
+
+Только URL принадлежащего операции временного файла передаётся
+UIActivityViewController. Bytes сохраняются без перекодировки, память ограничена
+потоком DocumentsApi; channel содержит id/path/MIME, не bytes. Файл живёт до
+completion/dismissal activity. Cancel/logout не удаляют его раньше этого момента,
+в том числе при failed cancel. Cleanup failure сохраняет ссылку и явный retry.
+Пользовательские copies в Files и файлы иных операций не удаляются.
+
+Native принимает только canonical regular files в native temporary/cache roots
+с собственным layout `dictai-export-*/dictai-download-*/fixedName`.
+Это учитывает pinned path_provider_foundation: getTemporaryDirectory на iOS
+возвращает Library/Caches; произвольный sandbox path не разрешён.
+
+Native bridge `com.dictai/ios_document_export`: `share {id,path,contentType}`
+завершается `completed`/`cancelled` либо safe FlutterError после окончания окна;
+`cancel {id}` действует только на собственную activity. Событие `presented(id)`
+поступает после UIKit presentation completion. Ранний cancel откладывает dismiss
+до её completion. iPad получает sourceView/sourceRect в bounds foreground presenter.
+Контейнер приложения не выставлен в Files, системные permissions не менялись.
+
+```sh
+/tmp/dictai-flutter-3.41.3/bin/flutter --no-version-check test --no-pub test/features/results/ios_document_export_test.dart test/features/results/documents_api_test.dart test/features/results/ios_result_detail_test.dart test/features/results/ios_results_library_test.dart test/features/results/ios_audio_player_test.dart --reporter expanded
+/tmp/dictai-flutter-3.41.3/bin/flutter --no-version-check build ios --simulator --debug --no-pub --target test/features/results/ios_media_smoke_app.dart --dart-define=DICTAI_IOS_MEDIA_PHASE=export
+xcrun simctl install booted build/ios/iphonesimulator/Runner.app
+xcrun simctl launch --console --terminate-running-process booted com.dictai.app
+```
+
+Native phase не использует account/backend/сеть. Fixture получает synthetic
+TXT, валидный одностраничный PDF и WAV. Для каждого она ждёт настоящий native
+`presented`, проверяет наличие input до завершения, посылает stale cancel,
+затем own cancel и проверяет пустой owned root. Отдельный цикл отменяет окно
+до окончания UIKit presentation animation. Требуются markers
+`CHECK export_present_cancel_transcriptTxt`, `CHECK export_present_cancel_summaryPdf`,
+`CHECK export_present_cancel_original`, `CHECK export_early_cancel` и
+`DICTAI_IOS_MEDIA PASS export`. Проверить на iPhone и iPad Simulator; один
+успешный launch не считается PASS. После smoke восстановить production main
+прежней public config без удаления sandbox/Keychain.
+
+Host targeted102 PASS и format5/analyze7info PASS записаны в карточке .14.
+Фактические native results дописывает coordinator; до этого NOT RUN.
+Save to Files/provider writes, внешние share apps, device accessibility,
+физический iPhone и поведение системных providers при ошибке остаются NOT RUN;
+синтетическая sheet/cancel проверка их не заменяет.
+
+
+## .14: итог нативной проверки coordinator — 2026-11-18
+
+Cwd frontend, pinned Flutter3.41.3/Dart3.11.1, Xcode26.5/macOS,
+iPhone17Pro и iPadPro11M5 Simulator/iOS26.5. Зависимости/lock/signing сохранены.
+`flutter build ios --simulator --debug --no-pub --target test/features/results/ios_media_smoke_app.dart --dart-define=DICTAI_IOS_MEDIA_PHASE=export`:
+после F03 PASS9.2s, log `/tmp/dictai-finish-export-build-fixed.log`.
+`simctl install`/`launch --console --terminate-running-process` на каждом:
+PASS, logs `/tmp/dictai-finish-export-iphone-fixed.log` и
+`/tmp/dictai-finish-export-ipad-fixed.log`. На обоих есть все четыре CHECK:
+TXT/PDF/WAV real presentation + stale cancel + own cancel, early cancel во время
+анимации, затем `DICTAI_IOS_MEDIA PASS export`. Файл удерживается до dismissal,
+owned staging удаляется. Это реальный UIKit/iPad popover smoke с synthetic
+bytes; внешний Files provider Save/write и physical iPhone не выполнялись.
+
+Первый native run обоих FAIL на export_present_transcriptTxt из-за несовпадения
+Library/Caches и NSTemporaryDirectory. F03 исправлен до push; первый FAIL не
+выдаётся за успешную проверку. Native guard теперь учитывает оба принадлежащих
+приложению ephemeral roots и строгое имя owned export/download directories.
+
+Final production main `python3 /tmp/dictai_ios_max_build.py 14-final`: PASS7.8s;
+установка/запуск на обоих Simulator PASS, production target/config восстановлены.
+Doc checker YAML20/DAG/table/status/owner/scope/149 local links/whitespace PASS;
+исходный .DS_Store сохранён вне commit.

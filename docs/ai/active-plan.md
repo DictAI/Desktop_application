@@ -1,5 +1,11 @@
 # Текущий этап — 2026-11-18
 
+.14 status review:102 targeted tests/format5/analyze PASS7 info. Native export
+phase после F03 PASS на iPhone17Pro и iPadPro11M5 Simulator/iOS26.5 (build9.2s,
+четыре CHECK и PASS export на каждом). Final main build7.8s/install/launch обоих Simulator PASS. .14-01 reviewed/complete, F01–F03 исправлены, открытых findings нет; source
+frozen. Physical Files provider/write/VoiceOver NOT RUN. .15 пока не начата.
+
+
 Поручение: завершить работу предыдущего агента, выполнить push, продолжить
 другие доступные задачи ранее выбранной очереди; до 10 субагентов.
 Пользователь явно разрешил push 2026-11-17/18; необходимый commit также входит
@@ -17,7 +23,11 @@ analyze PASS7 info. Финальный production main build8.4s/install/launch 
 то есть сборка включает F01 fix. Локальные ссылки266/whitespace PASS.
 
 Очередь остаётся .14 → .15 → .16 → .17; .18/.19 проверяются на внешние blockers.
-.14–.17 пока не стартовали; до handoff разрешено read-only исследование.
+После commit33a1fb3 и push origin/main .14 получает sole write:
+owner `/root/export_prep_finish`, exact scope/card из frontmatter, включая
+providers для сборки exporter. .15–.17 пока read-only до checks/review.
+Reviewer `/root/media_review_finish` получает только reserved .14-01 report;
+исходники предыдущего этапа frozen кроме выбранных .14 consumers.
 Coordinator `/root` единолично пишет active-plan/PLAN/decisions; source .13
 frozen. Reviewer `/root/media_review_finish` писал только .13-01 report.
 
@@ -142,7 +152,7 @@ Coordinator primary-agent единолично пишет этот реестр,
 | REVIEW-FE-002.11-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.11-01.md | created |
 | REVIEW-FE-002.12-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.12-01.md | created |
 | REVIEW-FE-002.13-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.13-01.md | created |
-| REVIEW-FE-002.14-01 | /root/media_review | docs/ai/reviews/REVIEW-FE-002.14-01.md | reserved |
+| REVIEW-FE-002.14-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.14-01.md | created |
 | REVIEW-FE-002.15-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.15-01.md | reserved |
 | REVIEW-FE-002.16-01 | /root/platform_review | docs/ai/reviews/REVIEW-FE-002.16-01.md | reserved |
 | REVIEW-FE-002.17-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.17-01.md | reserved |

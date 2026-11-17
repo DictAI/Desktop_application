@@ -24,6 +24,7 @@ import '../../features/results/data/results_api.dart';
 import '../../features/results/data/canonical_api.dart';
 import '../../features/results/data/documents_api.dart';
 import '../../features/results/data/original_audio_cache.dart';
+import '../../features/results/data/ios_document_export.dart';
 import '../../features/results/presentation/audio_player.dart';
 import '../../features/results/data/speech_status_api.dart';
 import '../../features/results/data/pending_job_store.dart';
@@ -123,6 +124,31 @@ final originalAudioCacheProvider = Provider.autoDispose
     });
 
 typedef ResultAudioKey = ({BatchSession session, String audioId, String jobId});
+final iosShareSheetProvider = Provider<IosShareSheet>(
+  (ref) => NativeIosShareSheet(),
+);
+
+final iosDocumentExporterProvider = ChangeNotifierProvider.autoDispose
+    .family<IosDocumentExporter, ResultAudioKey>((ref, key) {
+      final exporter = IosDocumentExporter(
+        api: ref.read(documentsApiProvider),
+        sheet: ref.read(iosShareSheetProvider),
+        temporaryDirectory: ref.read(resultTemporaryDirectoryProvider),
+        isCurrentSession: () =>
+            key.session.isCurrent &&
+            !key.session.jobs.isDeleted((
+              audioId: key.audioId,
+              jobId: key.jobId,
+            )),
+      );
+      unawaited(
+        key.session.cancelToken.whenCancel
+            .then((_) => exporter.close())
+            .catchError((Object _) {}),
+      );
+      return exporter;
+    });
+
 final resultAudioControllerProvider = ChangeNotifierProvider.autoDispose
     .family<ResultAudioController, ResultAudioKey>((ref, key) {
       final controller = ResultAudioController(

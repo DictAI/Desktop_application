@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +8,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/network/api_error_mapper.dart';
 import '../../../shared/providers/providers.dart';
 import '../data/dto/speech_status_dto.dart';
+import '../data/ios_document_export.dart';
 import 'processing_notifier.dart';
 import 'audio_player.dart';
 import 'result_detail_notifier.dart';
@@ -106,6 +110,19 @@ class _Detail extends ConsumerWidget {
                       audioId: request.audioId,
                       jobId: jobId,
                     ),
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.iOS &&
+                      state.jobId != null)
+                    _ResultExports(
+                      request: (
+                        session: request.session,
+                        audioId: request.audioId,
+                        jobId: state.jobId!,
+                      ),
+                      status: state.error != null || _lostAccess(error)
+                          ? null
+                          : progress?.status,
+                    ),
                   Text(
                     'Краткое содержание',
                     style: Theme.of(context).textTheme.titleMedium,
@@ -136,6 +153,93 @@ class _Detail extends ConsumerWidget {
     );
   }
 }
+
+class _ResultExports extends ConsumerWidget {
+  const _ResultExports({required this.request, required this.status});
+  final ResultAudioKey request;
+  final SpeechStatusDto? status;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final exporter = ref.watch(iosDocumentExporterProvider(request));
+    final canRequest =
+        status != null &&
+        IosExportKind.values.any((kind) => kind.canRequest(status));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (exporter.busy)
+            TextButton.icon(
+              onPressed: () =>
+                  unawaited(exporter.cancel().catchError((Object _) {})),
+              icon: const Icon(Icons.close),
+              label: const Text('Отменить экспорт'),
+            )
+          else
+            PopupMenuButton<IosExportKind>(
+              enabled: canRequest && !exporter.needsCleanup,
+              tooltip: 'Скачать и поделиться',
+              onSelected: (kind) => unawaited(
+                exporter
+                    .share(
+                      audioId: request.audioId,
+                      jobId: request.jobId,
+                      kind: kind,
+                      status: status!,
+                    )
+                    .catchError((Object _) => IosShareOutcome.cancelled),
+              ),
+              itemBuilder: (_) => [
+                for (final kind in IosExportKind.values)
+                  PopupMenuItem(
+                    value: kind,
+                    enabled: kind.canRequest(status),
+                    child: Text(kind.label),
+                  ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.ios_share),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Скачать и поделиться',
+                        style: TextStyle(
+                          color: canRequest
+                              ? null
+                              : Theme.of(context).disabledColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (exporter.errorMessage ?? exporter.message case final message?)
+            Semantics(liveRegion: true, child: Text(message)),
+          if (exporter.needsCleanup)
+            TextButton(
+              onPressed: exporter.retryCleanup,
+              child: const Text('Повторить удаление временного файла'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _lostAccess(Object? error) =>
+    error is NotFoundException ||
+    error is UnauthorizedException ||
+    error is ApiFailure &&
+        (error.kind == ApiFailureKind.forbidden ||
+            error.kind == ApiFailureKind.notFound ||
+            error.kind == ApiFailureKind.unauthorized);
 
 class _Summary extends StatelessWidget {
   const _Summary({required this.state, required this.retry});

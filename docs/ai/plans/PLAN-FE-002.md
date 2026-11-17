@@ -12,6 +12,13 @@ requirements_revision: "ios-2026-11-16"
 
 # PLAN-FE-002: DictAI для iOS/iPhone
 
+## Текущий gate .14 — 2026-11-18
+
+.14 review:102 targeted tests/format5/analyze PASS7 info. Нативная export phase
+после исправления F03 path_provider Caches/tmp mismatch: PASS iPhone17Pro и
+iPadPro11M5 Simulator/iOS26.5, build9.2s, real sheet/cancel/early-cancel.
+Final main build7.8s/install/launch обоих Simulator PASS. .14-01 reviewed/complete, F01–F03 исправлены; physical/provider-write NOT RUN.
+
 ## Текущий gate .13 — 2026-11-17
 
 Owner `/root`, status review: host97 PASS после decoder-stream fix, analyze PASS
@@ -22,8 +29,9 @@ Final integration 2026-11-18: полный `flutter test --no-pub --reporter exp
 738/738 PASS33s, scoped format26 PASS, local links266/whitespace PASS; final
 production main Simulator build8.4s/install/launch PASS после F01.
 Host/Simulator review gate пройден. Пользователь разрешил commit/push текущего
-результата и продолжение доступных выбранных задач (2026-11-18). Следующая .14
-получает sole write после сохранения текущего результата; accepted не назначается.
+результата и продолжение доступных выбранных задач (2026-11-18). Результат сохранён commit33a1fb3/push origin/main. .14 получает sole write
+owner `/root/export_prep_finish`, exact card scope, reviewer .14-01
+`/root/media_review_finish`; accepted не назначается.
 
 ## История выбранного максимума — 2026-11-17
 
@@ -287,7 +295,7 @@ Owner unassigned относится к будущей реализации; plan
 | [TASK-FE-002.11](../tasks/TASK-FE-002.11.md) | Добавить единый мобильный экран результата | review | TASK-FE-002.10 | /root/detail_prep | Exact paths в карточке |
 | [TASK-FE-002.12](../tasks/TASK-FE-002.12.md) | Показать большой транскрипт с говорящими и таймкодами | review | TASK-FE-002.11 | /root/detail_prep | Exact paths в карточке |
 | [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | review | TASK-FE-002.12 | /root | Exact paths в карточке |
-| [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | draft | TASK-FE-002.13 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | review | TASK-FE-002.13 | /root/export_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | draft | TASK-FE-002.14 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | draft | TASK-FE-002.15 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.17](../tasks/TASK-FE-002.17.md) | Закрепить iOS batch-сценарий регрессионными проверками | draft | TASK-FE-002.16 | unassigned | Exact paths в карточке |

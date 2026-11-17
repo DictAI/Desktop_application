@@ -7,6 +7,8 @@ import 'package:dict_ai/features/record/data/audio_capture.dart';
 import 'package:dict_ai/features/record/data/ios_audio_capture.dart';
 import 'package:dict_ai/features/record/data/wav_validator.dart';
 import 'package:dict_ai/features/results/data/documents_api.dart';
+import 'package:dict_ai/features/results/data/dto/speech_status_dto.dart';
+import 'package:dict_ai/features/results/data/ios_document_export.dart';
 import 'package:dict_ai/features/results/data/original_audio_cache.dart';
 import 'package:dict_ai/features/results/presentation/audio_player.dart';
 import 'package:dio/dio.dart';
@@ -31,11 +33,11 @@ Future<void> main() async {
     ),
   );
   await WidgetsBinding.instance.endOfFrame;
-  if (!Platform.isIOS || !{'capture', 'timeout'}.contains(phase)) {
+  if (!Platform.isIOS || !{'capture', 'timeout', 'export'}.contains(phase)) {
     stdout.writeln('DICTAI_IOS_MEDIA FAIL invalid_configuration');
     exit(2);
   }
-  final smoke = _Smoke();
+  final _NativeSmoke smoke = phase == 'export' ? _ExportSmoke() : _Smoke();
   stdout.writeln('DICTAI_IOS_MEDIA START $phase');
   var passed = false;
   try {
@@ -87,7 +89,14 @@ final class _ObservedPlaybackChannel extends MethodChannel {
   }
 }
 
-final class _Smoke {
+abstract interface class _NativeSmoke {
+  String get checkpoint;
+  Future<void> run(String phase);
+  Future<void> cleanup();
+}
+
+final class _Smoke implements _NativeSmoke {
+  @override
   String checkpoint = 'initialization';
   final order = <String>[];
   final captures = <IosAudioCapture>[];
@@ -106,6 +115,7 @@ final class _Smoke {
     return capture;
   }
 
+  @override
   Future<void> run(String phase) async {
     dio = Dio(BaseOptions(baseUrl: 'https://synthetic.invalid'))
       ..httpClientAdapter = _FixtureAdapter();
@@ -184,6 +194,7 @@ final class _Smoke {
     stdout.writeln('DICTAI_IOS_MEDIA CHECK valid_capture_after_stale_release');
   }
 
+  @override
   Future<void> cleanup() async {
     if (channel.ackGate case final gate? when !gate.isCompleted) {
       gate.complete();
@@ -204,6 +215,228 @@ final class _Smoke {
     dio?.close(force: true);
     channel.setMethodCallHandler(null);
   }
+}
+
+final class _ObservedExportChannel extends MethodChannel {
+  const _ObservedExportChannel() : super('com.dictai/ios_document_export');
+
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    try {
+      return await super.invokeMethod<T>(method, arguments);
+    } on PlatformException catch (error) {
+      const codes = {
+        'busy',
+        'invalid_file',
+        'no_presenter',
+        'provider_failure',
+        'invalid_request',
+      };
+      stdout.writeln(
+        'DICTAI_IOS_MEDIA CHECK export_native_error_${codes.contains(error.code) ? error.code : 'unexpected'}',
+      );
+      rethrow;
+    }
+  }
+}
+
+final class _ObservedShareSheet implements IosShareSheet {
+  final native = NativeIosShareSheet(channel: const _ObservedExportChannel());
+  Completer<void> started = Completer<void>();
+  String? id;
+  @override
+  Future<IosShareOutcome> present({
+    required String id,
+    required File file,
+    required String contentType,
+    VoidCallback? onPresented,
+  }) {
+    this.id = id;
+    final result = native.present(
+      id: id,
+      file: file,
+      contentType: contentType,
+      onPresented: onPresented,
+    );
+    started.complete();
+    return result;
+  }
+
+  @override
+  Future<void> cancel(String id) => native.cancel(id);
+}
+
+final class _ExportSmoke implements _NativeSmoke {
+  @override
+  String checkpoint = 'export_initialization';
+  Directory? directory;
+  Dio? dio;
+  IosDocumentExporter? exporter;
+  final sheet = _ObservedShareSheet();
+
+  @override
+  Future<void> run(String phase) async {
+    checkpoint = 'export_foreground';
+    final foreground = _ForegroundWaiter();
+    WidgetsBinding.instance.addObserver(foreground);
+    try {
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        await foreground.resumed.future.timeout(const Duration(seconds: 10));
+      }
+    } finally {
+      WidgetsBinding.instance.removeObserver(foreground);
+    }
+    directory = await (await getTemporaryDirectory()).createTemp(
+      'dictai-export-smoke-',
+    );
+    dio = Dio(BaseOptions(baseUrl: 'https://synthetic.invalid'))
+      ..httpClientAdapter = _ExportFixtureAdapter();
+    exporter = IosDocumentExporter(
+      api: DocumentsApi(dio!),
+      sheet: sheet,
+      temporaryDirectory: () async => directory!,
+      isCurrentSession: () => true,
+    );
+    final status = SpeechStatusDto.fromJson({
+      'job_id': 'synthetic-job',
+      'processing_version': 'fixture-v1',
+      'workspace_id': null,
+      'job_status': 'completed',
+      'transcript_status': 'ready',
+      'summary_status': 'ready',
+      'summary_error': null,
+    });
+    for (final kind in [
+      IosExportKind.transcriptTxt,
+      IosExportKind.summaryPdf,
+      IosExportKind.original,
+    ]) {
+      checkpoint = 'export_present_${kind.name}';
+      final presented = Completer<void>();
+      sheet.started = Completer<void>();
+      final operation = exporter!.share(
+        audioId: 'synthetic-audio',
+        jobId: 'synthetic-job',
+        kind: kind,
+        status: status,
+        onPresented: presented.complete,
+      );
+      unawaited(
+        operation.then(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            if (!presented.isCompleted) presented.completeError(error, stack);
+          },
+        ),
+      );
+      checkpoint = 'export_wait_presented_${kind.name}';
+      await presented.future.timeout(const Duration(seconds: 15));
+      checkpoint = 'export_busy_${kind.name}';
+      _require(exporter!.busy);
+      checkpoint = 'export_file_${kind.name}';
+      final files = await directory!
+          .list(recursive: true)
+          .where((e) => e is File)
+          .toList();
+      _require(files.length == 1 && await File(files.single.path).length() > 0);
+      checkpoint = 'export_stale_cancel_${kind.name}';
+      await sheet.cancel('stale-export-identity');
+      _require(exporter!.busy && await files.single.exists());
+      checkpoint = 'export_cancel_${kind.name}';
+      await exporter!.cancel();
+      _require(await operation == IosShareOutcome.cancelled);
+      _require(await directory!.list().isEmpty);
+      stdout.writeln(
+        'DICTAI_IOS_MEDIA CHECK export_present_cancel_${kind.name}',
+      );
+    }
+    // Cancel during UIKit's presentation animation, before its presented event.
+    checkpoint = 'export_early_cancel';
+    sheet.started = Completer<void>();
+    final pending = exporter!.share(
+      audioId: 'synthetic-audio',
+      jobId: 'synthetic-job',
+      kind: IosExportKind.transcriptTxt,
+      status: status,
+    );
+    await sheet.started.future;
+    await exporter!.cancel();
+    _require(await pending == IosShareOutcome.cancelled);
+    _require(await directory!.list().isEmpty);
+    stdout.writeln('DICTAI_IOS_MEDIA CHECK export_early_cancel');
+  }
+
+  @override
+  Future<void> cleanup() async {
+    await exporter?.close();
+    exporter?.dispose();
+    dio?.close(force: true);
+    if (directory case final owned? when await owned.exists()) {
+      await owned.delete(recursive: true);
+    }
+  }
+}
+
+final class _ForegroundWaiter with WidgetsBindingObserver {
+  final resumed = Completer<void>();
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !resumed.isCompleted) {
+      resumed.complete();
+    }
+  }
+}
+
+final class _ExportFixtureAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<dynamic>? cancelFuture,
+  ) async {
+    final mime = options.headers['Accept'] as String;
+    final bytes = switch (mime) {
+      'text/plain' => Uint8List.fromList(
+        'Synthetic export fixture\n'.codeUnits,
+      ),
+      'application/pdf' => _syntheticPdf(),
+      'audio/wav' => _tone(),
+      _ => throw StateError('Unexpected export fixture request'),
+    };
+    return ResponseBody.fromBytes(
+      bytes,
+      200,
+      headers: {
+        Headers.contentTypeHeader: [mime],
+        Headers.contentLengthHeader: ['${bytes.length}'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+Uint8List _syntheticPdf() {
+  final buffer = StringBuffer('%PDF-1.4\n');
+  final offsets = <int>[0];
+  final objects = [
+    '<</Type /Catalog /Pages 2 0 R>>',
+    '<</Type /Pages /Kids [3 0 R] /Count 1>>',
+    '<</Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R>>',
+    '<</Length 0>>\nstream\n\nendstream',
+  ];
+  for (var index = 0; index < objects.length; index++) {
+    offsets.add(buffer.length);
+    buffer.write('${index + 1} 0 obj\n${objects[index]}\nendobj\n');
+  }
+  final start = buffer.length;
+  buffer.write('xref\n0 5\n0000000000 65535 f \n');
+  for (final offset in offsets.skip(1)) {
+    buffer.write('${offset.toString().padLeft(10, '0')} 00000 n \n');
+  }
+  buffer.write('trailer\n<</Size 5 /Root 1 0 R>>\nstartxref\n$start\n%%EOF\n');
+  return Uint8List.fromList(buffer.toString().codeUnits);
 }
 
 final class _FixtureAdapter implements HttpClientAdapter {
