@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/error/app_exception.dart';
+import '../../../core/storage/ios_file_policy.dart';
 import 'dto/pending_upload.dart';
 import 'dto/upload_accepted_dto.dart';
 import 'dto/upload_options.dart';
@@ -31,9 +32,11 @@ final class PendingUploadStore {
     required this.ownerId,
     required bool Function() isCurrentSession,
     Future<Directory> Function()? applicationSupportDirectory,
+    IosFilePolicy filePolicy = const IosFilePolicy(),
     this.maxSourceBytes = 2 * WavValidator.maxFileBytes,
     this.maxEntries = 64,
-  }) : _isCurrentSession = isCurrentSession,
+  }) : _filePolicy = filePolicy,
+       _isCurrentSession = isCurrentSession,
        _applicationSupportDirectory =
            applicationSupportDirectory ?? getApplicationSupportDirectory {
     if (!PendingUpload.validOwnerId(ownerId)) {
@@ -46,6 +49,7 @@ final class PendingUploadStore {
     }
   }
 
+  final IosFilePolicy _filePolicy;
   final String ownerId;
   final bool Function() _isCurrentSession;
   final Future<Directory> Function() _applicationSupportDirectory;
@@ -125,9 +129,12 @@ final class PendingUploadStore {
     _checkSession();
     await staging.create();
     try {
+      await _filePolicy.prepare(staging);
+      _checkSession();
       final copy = File('${staging.path}/$_audioName');
       final digest = await _fileDigest(source.path, length, copyTo: copy.path);
       await const WavValidator().validate(copy);
+      await _filePolicy.protect(copy);
       final entry = PendingUpload(
         ownerId: ownerId,
         localId: id,
@@ -373,6 +380,7 @@ final class PendingUploadStore {
       );
     }
     await file.writeAsBytes(bytes, flush: true);
+    await _filePolicy.protect(file);
   }
 
   Future<T> _withOwner<T>(Future<T> Function(Directory) action) async {
@@ -392,6 +400,10 @@ final class PendingUploadStore {
       await previous;
       _checkSession();
       lock = await _openLock('$key/journal.lock', _unavailable);
+      _checkSession();
+      // Recursive attribute verification shares the owner lock with metadata
+      // rename/cleanup. It never traverses another account's journal.
+      await _filePolicy.prepare(owner);
       _checkSession();
       result = await action();
       _checkSession();
@@ -436,6 +448,7 @@ final class PendingUploadStore {
       final path = await support.resolveSymbolicLinks();
       final root = Directory('$path/dictai-pending-v1');
       await _ensureDirectory(root);
+      await _filePolicy.prepare(root);
       final owner = Directory('${root.path}/$ownerId');
       await _ensureDirectory(owner);
       _checkSession();

@@ -291,6 +291,86 @@ void main() {
     },
   );
 
+  for (final invalidate in ['logout', '401']) {
+    test(
+      '$invalidate stops capture before deleting only its unposted WAV',
+      () async {
+        final source = fixture.capture.file;
+        final external = fixture.unrelated;
+        await fixture.record.startRecording();
+        final stopped = Completer<void>();
+        fixture.capture.disposeGate = stopped;
+        if (invalidate == 'logout') {
+          await fixture.container.read(authNotifierProvider.notifier).logout();
+        } else {
+          await expectLater(
+            fixture.dio.get('/protected'),
+            throwsA(isA<DioException>()),
+          );
+        }
+        expect(fixture.state.status, RecordStatus.idle);
+        expect(
+          source.existsSync(),
+          isTrue,
+          reason: 'Native writer still owns the file',
+        );
+        stopped.complete();
+        for (var i = 0; i < 100 && source.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(source.existsSync(), isFalse);
+        expect(external.existsSync(), isTrue);
+        expect(fixture.capture.disposals, 1);
+        expect(fixture.posts, isEmpty);
+      },
+    );
+  }
+
+  test(
+    'logout during finish removes a late owned WAV without preparing a POST',
+    () async {
+      await fixture.record.startRecording();
+      fixture.capture.finishGate = Completer<void>();
+      final finishing = fixture.record.finishRecording(confirmed: true);
+      await Future<void>.delayed(Duration.zero);
+      await fixture.container.read(authNotifierProvider.notifier).logout();
+      fixture.capture.finishGate!.complete();
+      await finishing;
+      for (var i = 0; i < 100 && fixture.capture.file.existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(fixture.capture.file.existsSync(), isFalse);
+      expect(fixture.unrelated.existsSync(), isTrue);
+      expect(fixture.state.status, RecordStatus.idle);
+      expect(fixture.posts, isEmpty);
+    },
+  );
+
+  test(
+    'failed capture release retains its source ownership until logout cleanup',
+    () async {
+      await fixture.record.startRecording();
+      fixture.capture.events.add(
+        const CaptureEvent(
+          CaptureStatus.failed,
+          message: 'Synthetic encoder failure',
+        ),
+      );
+      for (var i = 0; i < 100 && fixture.capture.disposals == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(fixture.state.status, RecordStatus.error);
+      expect(fixture.capture.file.existsSync(), isTrue);
+      await fixture.container.read(authNotifierProvider.notifier).logout();
+      for (var i = 0; i < 100 && fixture.capture.file.existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(fixture.capture.file.existsSync(), isFalse);
+      expect(fixture.unrelated.existsSync(), isTrue);
+      expect(fixture.posts, isEmpty);
+    },
+  );
+
   test(
     'unconfirmed discard preserves paused source without native cleanup',
     () async {

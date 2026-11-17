@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dict_ai/core/config/app_config.dart';
 import 'package:dict_ai/core/error/app_exception.dart';
+import 'package:dict_ai/core/storage/ios_file_policy.dart';
 import 'package:dict_ai/core/theme/app_theme.dart';
 import 'package:dict_ai/features/record/data/dto/upload_options.dart';
 import 'package:dict_ai/features/record/data/ios_wav_import.dart';
@@ -150,6 +151,43 @@ void main() {
       expect(await second.file.exists(), isTrue);
       await second.discard();
       expect(await staging.list().toList(), isEmpty);
+    },
+  );
+
+  test(
+    'native protection rejection removes only private import staging',
+    () async {
+      const channel = MethodChannel('test.dictai/import_policy');
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            final path = (call.arguments as Map)['path'] as String;
+            calls.add(path);
+            if (path.endsWith('source.wav')) {
+              throw PlatformException(code: 'attributes_unavailable');
+            }
+            return {
+              'excludedFromBackup': true,
+              'protection': 'completeUntilFirstUserAuthentication',
+              'protectionVerified': true,
+              'environment': 'device',
+            };
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      await expectLater(
+        IosWavImporter(
+          pickFile: () async => source,
+          temporaryDirectory: () async => staging,
+          filePolicy: const IosFilePolicy(channel: channel, enabled: true),
+        ).pick(isCurrent: () => true),
+        throwsA(isA<ValidationException>()),
+      );
+      expect(calls, hasLength(2));
+      expect(await staging.list().toList(), isEmpty);
+      expect(await source.readAsBytes(), _wav());
     },
   );
 

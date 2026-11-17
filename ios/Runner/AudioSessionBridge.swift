@@ -312,12 +312,11 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
             .appendingPathComponent("dictai-ios-capture-\(UUID().uuidString)", isDirectory: true)
           try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
             attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
-          var resource = URLResourceValues()
-          resource.isExcludedFromBackup = true
-          var protectedDirectory = directory
-          try protectedDirectory.setResourceValues(resource)
           let url = directory.appendingPathComponent("microphone.wav")
+          // Publish ownership even if native attribute verification fails, so
+          // the adapter can discard this newly allocated directory on logout.
           self.output = url
+          _ = try StoragePolicyBridge.protectOwnedPath(directory.path)
           stage = "recorder"
           let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
@@ -333,8 +332,10 @@ final class AudioSessionBridge: NSObject, FlutterStreamHandler, AVAudioRecorderD
           stage = "prepare"
           guard recorder.prepareToRecord() else { throw BridgeError.recording }
           stage = "protection"
-          try FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
+          // prepareToRecord creates the file under the protected directory.
+          // Verify its real attributes before recording starts, including when
+          // AVAudioRecorder supplies its own file creation attributes.
+          _ = try StoragePolicyBridge.protectOwnedPath(directory.path)
           self.observeSession()
           stage = "record"
           guard recorder.record() else { throw BridgeError.recording }

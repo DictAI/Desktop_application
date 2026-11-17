@@ -9,13 +9,12 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/secure_storage.dart';
+import '../../core/storage/ios_file_policy.dart';
 import '../../core/config/app_config.dart';
 import '../../core/lifecycle/ios_lifecycle_observer.dart';
 import '../../features/auth/data/auth_api.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
 import '../../features/workspace/data/workspace_api.dart';
-import '../../features/record/data/audio_ingest_api.dart';
-import '../../features/record/data/anonymous_session_api.dart';
 import '../../features/record/data/anthropic_service.dart';
 import '../../features/record/data/dto/pending_upload.dart';
 import '../../features/record/data/pending_upload_store.dart';
@@ -32,6 +31,10 @@ import '../../features/results/presentation/processing_notifier.dart';
 import '../../features/results/presentation/result_ready_notice.dart';
 
 // ── Storage ──────────────────────────────────────────────────────────────────
+
+final iosFilePolicyProvider = Provider<IosFilePolicy>(
+  (ref) => const IosFilePolicy(),
+);
 
 final secureStorageProvider = Provider<SecureStorage>((ref) {
   return const SecureStorage();
@@ -76,10 +79,6 @@ final workspaceApiProvider = Provider<WorkspaceApi>(
   (ref) => WorkspaceApi(ref.read(dioProvider)),
 );
 
-final audioIngestApiProvider = Provider<AudioIngestApi>(
-  (ref) => AudioIngestApi(ref.read(dioProvider)),
-);
-
 final resultsApiProvider = Provider<ResultsApi>(
   (ref) => ResultsApi(ref.read(dioProvider)),
 );
@@ -93,7 +92,10 @@ final canonicalApiProvider = Provider<CanonicalApi>(
 );
 
 final documentsApiProvider = Provider<DocumentsApi>(
-  (ref) => DocumentsApi(ref.read(dioProvider)),
+  (ref) => DocumentsApi(
+    ref.read(dioProvider),
+    filePolicy: ref.read(iosFilePolicyProvider),
+  ),
 );
 
 /// Owned downloads/previews only; tests override this without platform calls.
@@ -114,6 +116,16 @@ final originalAudioCacheProvider = Provider.autoDispose
         api: ref.read(documentsApiProvider),
         temporaryDirectory: ref.read(resultTemporaryDirectoryProvider),
         isCurrentSession: () => session.isCurrent,
+        prepareDirectory: ref.read(iosFilePolicyProvider).prepare,
+      );
+      final removeListener = session.jobs.listenDeleted((audioId) {
+        unawaited(cache.removeAudio(audioId).catchError((Object _) {}));
+      });
+      ref.onDispose(removeListener);
+      ref.onDispose(
+        session.jobs.listenUnavailable((job) {
+          unawaited(cache.removeJob(job).catchError((Object _) {}));
+        }),
       );
       ref.onDispose(() => unawaited(cache.close().catchError((Object _) {})));
       unawaited(
@@ -135,12 +147,26 @@ final iosDocumentExporterProvider = ChangeNotifierProvider.autoDispose
         api: ref.read(documentsApiProvider),
         sheet: ref.read(iosShareSheetProvider),
         temporaryDirectory: ref.read(resultTemporaryDirectoryProvider),
+        prepareDirectory: ref.read(iosFilePolicyProvider).prepare,
         isCurrentSession: () =>
             key.session.isCurrent &&
             !key.session.jobs.isDeleted((
               audioId: key.audioId,
               jobId: key.jobId,
             )),
+      );
+      final removeListener = key.session.jobs.listenDeleted((audioId) {
+        if (audioId == key.audioId) {
+          unawaited(exporter.close().catchError((Object _) {}));
+        }
+      });
+      ref.onDispose(removeListener);
+      ref.onDispose(
+        key.session.jobs.listenUnavailable((job) {
+          if (job.audioId == key.audioId && job.jobId == key.jobId) {
+            unawaited(exporter.close().catchError((Object _) {}));
+          }
+        }),
       );
       unawaited(
         key.session.cancelToken.whenCancel
@@ -164,6 +190,19 @@ final resultAudioControllerProvider = ChangeNotifierProvider.autoDispose
             )),
         coordinator: ref.read(iosPlaybackCoordinatorProvider),
         lifecycle: ref.read(iosLifecycleObserverProvider),
+      );
+      final removeListener = key.session.jobs.listenDeleted((audioId) {
+        if (audioId == key.audioId) {
+          unawaited(controller.close().catchError((Object _) {}));
+        }
+      });
+      ref.onDispose(removeListener);
+      ref.onDispose(
+        key.session.jobs.listenUnavailable((job) {
+          if (job.audioId == key.audioId && job.jobId == key.jobId) {
+            unawaited(controller.close().catchError((Object _) {}));
+          }
+        }),
       );
       unawaited(
         key.session.cancelToken.whenCancel
@@ -227,11 +266,13 @@ final class BatchSession {
     this.ownerId,
     this._api,
     Future<Directory> Function() support,
+    IosFilePolicy filePolicy,
   ) {
     uploads = PendingUploadStore(
       ownerId: ownerId,
       isCurrentSession: () => isCurrent,
       applicationSupportDirectory: support,
+      filePolicy: filePolicy,
     );
     jobs = PendingJobStore(uploads: uploads, isCurrentSession: () => isCurrent);
     processingSession = ProcessingSession(
@@ -343,7 +384,12 @@ final batchSessionProvider = FutureProvider.autoDispose<BatchSession>((
     final ownerId = _journalOwner(credential?.token);
     if (!current || ownerId == null) throw const UnauthorizedException();
 
-    final batch = BatchSession._(ownerId, api, support);
+    final batch = BatchSession._(
+      ownerId,
+      api,
+      support,
+      ref.read(iosFilePolicyProvider),
+    );
     session = batch;
     final tracker = processingNotifierProvider(batch.processingSession);
     // Keep polling alive when switching screens. Revocation closes this lease
@@ -374,8 +420,4 @@ String? _journalOwner(String? token) {
 
 final anthropicServiceProvider = Provider<AnthropicService>(
   (ref) => AnthropicService(ref.read(secureStorageProvider)),
-);
-
-final anonymousSessionApiProvider = Provider<AnonymousSessionApi>(
-  (ref) => AnonymousSessionApi(ref.read(dioProvider)),
 );

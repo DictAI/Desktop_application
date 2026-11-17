@@ -12,6 +12,24 @@ requirements_revision: "ios-2026-11-16"
 
 # PLAN-FE-002: DictAI для iOS/iPhone
 
+## Возобновление .16 — 2026-11-18
+
+.16 source frozen/review:262 targeted PASS, analyzer no issues, independent168
+и format21 PASS. Native9 XCTest PASS; Simulator backup readback подтверждён,
+file protection unavailable честно обозначен simulator-only capability;
+device builds требуют strict protection readback. Native capture/export smoke
+PASS, final main Simulator build7.2s/install/launch и unsigned device compile26.0s
+PASS. Device compile не является signed install/runtime. .16-01
+reviewed/complete; F01–F04 fixed with evidence, открытых findings нет.
+Host/Simulator gate .16 завершён; .17 получает следующий handoff. Physical NOT RUN.
+
+## Текущий handoff .16 — 2026-11-18
+
+.15 checks/review complete, commit3665fae/push origin/main. .16 in_progress,
+owner `/root/cleanup_prep_finish`, native/filepolicy writer
+`/root/filepolicy_prep_finish` в непересекающихся exact scopes active-plan.
+Reviewer `/root/cleanup_review_finish`, reserved .16-01. .17 ещё не стартовала.
+
 ## Текущий handoff .15 — 2026-11-18
 
 .14 checks/review завершены, commit bdfc370/push origin/main. .15 review,118 targeted/format5/analyze PASS7 info, final main build8.5s/install/launch PASS,
@@ -303,7 +321,7 @@ Owner unassigned относится к будущей реализации; plan
 | [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | review | TASK-FE-002.12 | /root | Exact paths в карточке |
 | [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | review | TASK-FE-002.13 | /root/export_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | review | TASK-FE-002.14 | /root/notice_prep_finish | Exact paths в карточке |
-| [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | draft | TASK-FE-002.15 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | review | TASK-FE-002.15 | /root/cleanup_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.17](../tasks/TASK-FE-002.17.md) | Закрепить iOS batch-сценарий регрессионными проверками | draft | TASK-FE-002.16 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.18](../tasks/TASK-FE-002.18.md) | Подтвердить реальный iPhone E2E и platform readiness | draft | TASK-FE-002.17 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.19](../tasks/TASK-FE-002.19.md) | Подготовить iOS candidate и требования TestFlight/App Store | draft | TASK-FE-002.18 | unassigned | Exact paths в карточке |

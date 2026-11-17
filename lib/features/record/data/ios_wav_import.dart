@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/error/app_exception.dart';
+import '../../../core/storage/ios_file_policy.dart';
 import 'wav_validator.dart';
 
 /// A private staging copy. Discarding it never touches the picker source.
@@ -31,13 +32,16 @@ final class IosWavImporter {
     Future<File?> Function()? pickFile,
     Future<Directory> Function()? temporaryDirectory,
     WavValidator validator = const WavValidator(),
+    IosFilePolicy filePolicy = const IosFilePolicy(),
   }) : _pickFile = pickFile ?? _pickWav,
        _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory,
-       _validator = validator;
+       _validator = validator,
+       _filePolicy = filePolicy;
 
   final Future<File?> Function() _pickFile;
   final Future<Directory> Function() _temporaryDirectory;
   final WavValidator _validator;
+  final IosFilePolicy _filePolicy;
   // The plugin reuses tmp/<basename>, including across different modal owners.
   static bool _busy = false;
   static const _chunkBytes = 64 * 1024;
@@ -92,6 +96,8 @@ final class IosWavImporter {
       final temporary = await _temporaryDirectory();
       if (!isCurrent()) return null;
       staging = await temporary.createTemp('dictai-wav-import-');
+      await _filePolicy.prepare(staging);
+      if (!isCurrent()) return null;
       final partial = File('${staging.path}/source.part');
       final input = await source.open();
       try {
@@ -125,6 +131,7 @@ final class IosWavImporter {
       final metadata = await _validator.validate(partial);
       if (!isCurrent()) return null;
       final file = await partial.rename('${staging.path}/source.wav');
+      await _filePolicy.protect(file);
       if (!isCurrent()) return null;
       transferred = true;
       return ImportedWav._(file, name, metadata, staging);

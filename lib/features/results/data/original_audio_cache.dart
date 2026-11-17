@@ -60,12 +60,21 @@ final class OriginalAudioCache {
   _Entry? _entry;
   Future<void> _tail = Future.value();
   CancelToken? _request;
+  OriginalAudioKey? _loadingKey;
+  final _deletedAudio = <String>{};
+  final _deletedJobs = <({String audioId, String jobId})>{};
+  bool _isDeleted(String audioId, String jobId) =>
+      _deletedAudio.contains(audioId) ||
+      _deletedJobs.contains((audioId: audioId, jobId: jobId));
   bool _closed = false;
   Future<void>? _closing;
 
   bool get _current => !_closed && _isCurrentSession();
 
   Future<OriginalAudioLease> acquire(String audioId, String jobId) {
+    if (_isDeleted(audioId, jobId)) {
+      return Future.error(const NotFoundException('Результат удалён.'));
+    }
     final result = _tail.then((_) => _acquire(audioId, jobId));
     _tail = result.then((_) {}, onError: (Object _, StackTrace __) {});
     return result;
@@ -73,6 +82,9 @@ final class OriginalAudioCache {
 
   Future<OriginalAudioLease> _acquire(String audioId, String jobId) async {
     if (!_current) throw const UnauthorizedException();
+    if (_isDeleted(audioId, jobId)) {
+      throw const NotFoundException('Результат удалён.');
+    }
     if (audioId.isEmpty || jobId.isEmpty) {
       throw const ValidationException('Не указан идентификатор аудиозаписи.');
     }
@@ -99,6 +111,9 @@ final class OriginalAudioCache {
       }
       final pending = _load(key);
       entry = await pending;
+    }
+    if (_isDeleted(audioId, jobId)) {
+      throw const NotFoundException('Результат удалён.');
     }
     if (!_current || entry == null || !identical(entry, _entry)) {
       throw const UnauthorizedException();
@@ -134,8 +149,12 @@ final class OriginalAudioCache {
     }
     await _prepareDirectory?.call(directory);
     if (!_current) throw const UnauthorizedException();
+    if (_isDeleted(key.audioId, key.jobId)) {
+      throw const NotFoundException('Результат удалён.');
+    }
     final request = CancelToken();
     _request = request;
+    _loadingKey = key;
     try {
       final downloaded = await _api.getOriginal(
         key.audioId,
@@ -143,6 +162,12 @@ final class OriginalAudioCache {
         cancelToken: request,
         maxBytes: maxBytes,
       );
+      try {
+        await _prepareDirectory?.call(directory);
+      } catch (_) {
+        await _deleteDownloaded(downloaded);
+        rethrow;
+      }
       final entry = _Entry(key, downloaded);
       _entry = entry;
       if (!_current) {
@@ -151,8 +176,41 @@ final class OriginalAudioCache {
       }
       return entry;
     } finally {
-      if (identical(_request, request)) _request = null;
+      if (identical(_request, request)) {
+        _request = null;
+        _loadingKey = null;
+      }
     }
+  }
+
+  /// Fence the exact audio synchronously, then release its private bytes after
+  /// any decoder has stopped. Other recordings can still use this session.
+  Future<void> removeAudio(String audioId) {
+    _deletedAudio.add(audioId);
+    return _removeWhere((key) => key.audioId == audioId);
+  }
+
+  Future<void> removeJob(({String audioId, String jobId}) job) {
+    _deletedJobs.add(job);
+    return _removeWhere(
+      (key) => key.audioId == job.audioId && key.jobId == job.jobId,
+    );
+  }
+
+  Future<void> _removeWhere(bool Function(OriginalAudioKey) matches) {
+    final loading = _loadingKey;
+    if (loading != null && matches(loading)) _request?.cancel();
+    final entry = _entry;
+    if (entry != null && matches(entry.key)) entry.valid = false;
+    final result = _tail.then((_) async {
+      final entry = _entry;
+      if (entry == null || !matches(entry.key)) return;
+      if (entry.leases > 0) await (entry.unused ??= Completer<void>()).future;
+      await _deleteDownloaded(entry.download);
+      if (identical(_entry, entry)) _entry = null;
+    });
+    _tail = result.then((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
   }
 
   /// Cancel immediately, then wait for the decoder's lease before deletion.

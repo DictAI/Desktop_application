@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../core/error/app_exception.dart';
+import '../../../core/storage/ios_file_policy.dart';
 import '../../../core/network/api_error_mapper.dart';
 import '../../record/data/wav_validator.dart';
 import 'dto/document_kind.dart';
@@ -29,8 +30,23 @@ final class DownloadedFile {
 /// R05/U04 only. Inject the common Dio so gateway policy runs before JWT.
 /// Files are never published to a consumer until EOF and validation succeed.
 final class DocumentsApi {
-  DocumentsApi(this._dio);
+  DocumentsApi(
+    this._dio, {
+    IosFilePolicy filePolicy = const IosFilePolicy(),
+    this.maxDocumentBytes = 64 * 1024 * 1024,
+  }) : _filePolicy = filePolicy {
+    if (maxDocumentBytes <= 0) {
+      throw ArgumentError.value(maxDocumentBytes, 'maxDocumentBytes');
+    }
+  }
   final Dio _dio;
+  final IosFilePolicy _filePolicy;
+
+  /// Local per-download disk budget for TXT/PDF, independent of wire format.
+  final int maxDocumentBytes;
+  static const _documentTooLarge = ValidationException(
+    'Документ превышает локальный лимит хранения.',
+  );
 
   Future<DownloadedFile> getDocument(
     String audioId,
@@ -48,6 +64,7 @@ final class DocumentsApi {
       temporaryDirectory: temporaryDirectory,
       query: jobId == null ? null : {'job_id': jobId},
       cancelToken: cancelToken,
+      maxBytes: maxDocumentBytes,
     );
   }
 
@@ -101,6 +118,8 @@ final class DocumentsApi {
     try {
       if (transfer.isCancelled) throw transfer.cancelError!;
       owned = await temporaryDirectory.createTemp('dictai-download-');
+      await _filePolicy.prepare(owned);
+      if (transfer.isCancelled) throw transfer.cancelError!;
       final partial = File('${owned.path}/payload.part');
       handle = partial.openSync(mode: FileMode.write);
       final response = await _dio.get<ResponseBody>(
@@ -142,6 +161,7 @@ final class DocumentsApi {
       final declared = _contentLength(response.headers);
       final limit = original ? maxBytes ?? WavValidator.maxFileBytes : maxBytes;
       if (limit != null && declared != null && declared > limit) {
+        if (!original) throw _documentTooLarge;
         throw _invalidResponse();
       }
       final prefix = <int>[];
@@ -160,8 +180,11 @@ final class DocumentsApi {
           try {
             if (transfer.isCancelled) throw transfer.cancelError!;
             received += chunk.length;
-            if (declared != null && received > declared ||
-                limit != null && received > limit) {
+            if (limit != null && received > limit) {
+              if (!original) throw _documentTooLarge;
+              throw _invalidResponse();
+            }
+            if (declared != null && received > declared) {
               throw _invalidResponse();
             }
             final needed = original
@@ -237,6 +260,7 @@ final class DocumentsApi {
       }
       if (transfer.isCancelled) throw transfer.cancelError!;
       final complete = await partial.rename('${owned.path}/$fileName');
+      await _filePolicy.protect(complete);
       if (transfer.isCancelled) throw transfer.cancelError!;
       success = true;
       return DownloadedFile._(complete, received, owned);

@@ -647,11 +647,22 @@ void main() {
           .read(resultDetailNotifierProvider(key).notifier)
           .refresh();
       final state = h.container.read(resultDetailNotifierProvider(key));
-      expect(state.progress!.canonical, isNull);
+      expect(state.progress, isNull);
       expect(state.summary.asData?.value, isNull);
+      expect(state.error, isA<NotFoundException>());
       expect(
-        (state.progress!.error as ApiFailure).kind,
-        ApiFailureKind.notFound,
+        key.session.jobs.isDeleted((audioId: _audio, jobId: _job)),
+        isTrue,
+      );
+      h.adapter.statusCode = 200;
+      final requests = h.adapter.requests.length;
+      await h.container
+          .read(resultDetailNotifierProvider(key).notifier)
+          .refresh();
+      expect(h.adapter.requests, hasLength(requests));
+      expect(
+        h.container.read(resultDetailNotifierProvider(key)).error,
+        isA<NotFoundException>(),
       );
     },
   );

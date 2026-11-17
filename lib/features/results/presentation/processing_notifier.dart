@@ -159,6 +159,9 @@ final class ProcessingNotifier
     var job = previous.job;
     SpeechStatusDto? latestStatus;
     Duration? next;
+    // Only R03 speaks for access to the result. A missing U03 anonymous session
+    // (TTL) or R04 artifact must not tombstone an otherwise readable recording.
+    var readingResultStatus = true;
     try {
       var status = await _statusApi.getSpeechStatus(
         job.audioId,
@@ -166,6 +169,7 @@ final class ProcessingNotifier
         cancelToken: token,
       );
       if (!_active(generation, key, token)) return;
+      readingResultStatus = false;
       if (job.processingVersion != null &&
           status.processingVersion != job.processingVersion) {
         throw _invalid;
@@ -306,6 +310,15 @@ final class ProcessingNotifier
         ),
         token,
       );
+      if (lostAccess && readingResultStatus) {
+        // Preserve the unavailable progress for diagnostics while fencing all
+        // future reads and synchronously revoking player/export/detail/list.
+        store.markUnavailable(key);
+        _timers.remove(key)?.cancel();
+        _tokens.remove(key)?.cancel();
+        _failures.remove(key);
+        _nextReadAt.remove(key);
+      }
     } finally {
       if (identical(_tokens[key], token)) {
         _tokens.remove(key);

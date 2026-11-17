@@ -76,6 +76,17 @@ final class ResultDetailNotifier extends StateNotifier<ResultDetailState> {
       _progressChanged,
       fireImmediately: false,
     );
+    _removeDeletionListener = key.session.jobs.listenDeleted((audioId) {
+      if (audioId == key.audioId && mounted && !_closed) _audioRemoved();
+    });
+    _removeUnavailableListener = key.session.jobs.listenUnavailable((job) {
+      if (job.audioId == key.audioId &&
+          job.jobId == (state.jobId ?? key.jobId) &&
+          mounted &&
+          !_closed) {
+        _audioRemoved();
+      }
+    });
     _lifecycle?.addListener(_lifecycleChanged);
     // Never mutate the shared tracker while Riverpod builds this provider.
     unawaited(Future<void>.microtask(open));
@@ -88,6 +99,8 @@ final class ResultDetailNotifier extends StateNotifier<ResultDetailState> {
   final Future<Directory> Function() _temporaryDirectory;
   final IosLifecycleObserver? _lifecycle;
   late final void Function() _removeTrackerListener;
+  late final void Function() _removeDeletionListener;
+  late final void Function() _removeUnavailableListener;
   CancelToken? _resolution;
   CancelToken? _summaryRequest;
   bool _closed = false;
@@ -109,6 +122,13 @@ final class ResultDetailNotifier extends StateNotifier<ResultDetailState> {
 
   Future<void> open() async {
     if (!_current || !_foreground || _resolution != null) return;
+    if (key.session.jobs.isDeleted((
+      audioId: key.audioId,
+      jobId: key.jobId ?? '',
+    ))) {
+      _audioRemoved();
+      return;
+    }
     if (!_validId(key.audioId) || key.jobId != null && !_validId(key.jobId!)) {
       state = const ResultDetailState(
         resolving: false,
@@ -133,7 +153,15 @@ final class ResultDetailNotifier extends StateNotifier<ResultDetailState> {
       _pin(status.jobId, processingVersion: status.processingVersion);
     } on AppException catch (error) {
       if (_current && identical(_resolution, token)) {
-        state = state.copyWith(resolving: false, error: error);
+        if (error is NotFoundException ||
+            error is ApiFailure &&
+                (error.kind == ApiFailureKind.notFound ||
+                    error.kind == ApiFailureKind.forbidden)) {
+          key.session.jobs.markDeleted(key.audioId);
+          _tracker.removeAudio(key.audioId);
+        } else {
+          state = state.copyWith(resolving: false, error: error);
+        }
       }
     } finally {
       if (identical(_resolution, token)) _resolution = null;
@@ -322,6 +350,8 @@ final class ResultDetailNotifier extends StateNotifier<ResultDetailState> {
 
   @override
   void dispose() {
+    _removeDeletionListener();
+    _removeUnavailableListener();
     _removeTrackerListener();
     _lifecycle?.removeListener(_lifecycleChanged);
     stopSession();

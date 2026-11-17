@@ -155,6 +155,9 @@ class RecordNotifier extends StateNotifier<RecordState> {
   Future<bool>? _discarding;
   File? _discardSource;
   bool _refreshingDevices = false;
+  final _ownedSources = <String>{};
+  Future<void>? _revokingCapture;
+  Future<Object?>? _preparingCopy;
 
   bool get hasActiveOperation => state.controlsLocked;
   bool get supportsPause => _capture?.supportsPause ?? false;
@@ -324,6 +327,7 @@ class RecordNotifier extends StateNotifier<RecordState> {
       final session = await _openSession();
       if (!_currentSession(generation, session)) return;
       _session = session;
+      await _revokingCapture;
       await _releaseCapture();
       if (!_currentSession(generation, session)) return;
       final capture = _captureFactory(system);
@@ -359,6 +363,10 @@ class RecordNotifier extends StateNotifier<RecordState> {
         });
       }
       await capture.start(device: device);
+      if (!_current(generation)) {
+        await _revokeCapture(capture);
+        return;
+      }
       if (!_currentSession(generation, session)) return;
       if (capture.status != CaptureStatus.recording &&
           capture.status != CaptureStatus.paused) {
@@ -459,7 +467,11 @@ class RecordNotifier extends StateNotifier<RecordState> {
     try {
       if (!_currentSession(generation, session)) return;
       final file = await capture.finish(confirmed: true);
-      if (!_current(generation)) return;
+      if (file != null) _ownedSources.add(file.path);
+      if (!_current(generation)) {
+        await _revokeCapture(capture);
+        return;
+      }
       await _releaseCapture();
       if (!_currentSession(generation, session)) return;
       if (file == null) {
@@ -608,17 +620,13 @@ class RecordNotifier extends StateNotifier<RecordState> {
     required bool appOwned,
   }) async {
     // prepare validates the exact copied WAV and commits the receipt before POST.
-    final pending = await session.uploads.prepare(
-      source: file,
-      options: options,
-    );
-    if (appOwned) {
-      try {
-        await file.delete();
-      } on FileSystemException {
-        // The durable copy remains authoritative. No user-owned file is removed.
-      }
-    }
+    if (appOwned) _ownedSources.add(file.path);
+    final preparing = session.uploads.prepare(source: file, options: options);
+    _preparingCopy = preparing;
+    final pending = await preparing.whenComplete(() {
+      if (identical(_preparingCopy, preparing)) _preparingCopy = null;
+    });
+    if (appOwned) await _deleteOwnedSource(file.path);
     if (!_currentSession(generation, session)) return;
     _pendingUploadId = pending.localId;
     await _send(session, pending.localId, generation);
@@ -695,11 +703,20 @@ class RecordNotifier extends StateNotifier<RecordState> {
   Future<void> _releaseCapture() {
     final capture = _capture;
     if (capture == null) return Future.value();
+    final sourcePath = capture.sourcePath;
+    if (sourcePath != null && sourcePath.isNotEmpty) {
+      _ownedSources.add(sourcePath);
+    }
+    final events = _captureEvents;
+    _captureEvents = null;
     return _releasing ??=
         Future<void>.sync(() async {
-              await _captureEvents?.cancel();
-              _captureEvents = null;
+              await events?.cancel();
               await capture.dispose();
+              final stoppedPath = capture.sourcePath;
+              if (stoppedPath != null && stoppedPath.isNotEmpty) {
+                _ownedSources.add(stoppedPath);
+              }
             })
             .then((_) {
               if (identical(_capture, capture)) _capture = null;
@@ -715,7 +732,57 @@ class RecordNotifier extends StateNotifier<RecordState> {
     }
   }
 
+  Future<void> _deleteOwnedSource(String path) async {
+    try {
+      final type = await FileSystemEntity.type(path, followLinks: false);
+      if (type == FileSystemEntityType.file) {
+        await File(path).delete();
+        _ownedSources.remove(path);
+      } else if (type == FileSystemEntityType.notFound) {
+        _ownedSources.remove(path);
+      }
+    } on FileSystemException {
+      // Keep only the exact owned path for another cleanup attempt. Never
+      // recurse into a parent or follow an unexpected link/directory.
+    }
+  }
+
+  Future<void> _revokeCapture(AudioCapture? capture) {
+    final path = capture?.sourcePath;
+    if (path != null && path.isNotEmpty) _ownedSources.add(path);
+    if (_revokingCapture case final pending?) return pending;
+    final work = () async {
+      // Native release waits for a pending permission/start/finish callback.
+      // Only after this acknowledgement may its source be removed safely.
+      await _releaseCapture();
+      final stoppedPath = capture?.sourcePath;
+      if (stoppedPath != null && stoppedPath.isNotEmpty) {
+        _ownedSources.add(stoppedPath);
+      }
+      try {
+        await _preparingCopy;
+      } catch (_) {
+        // A cancelled prepare removes its private staging in its finally.
+      }
+      for (final owned in _ownedSources.toList()) {
+        await _deleteOwnedSource(owned);
+      }
+    }();
+    _revokingCapture = work;
+    work.then(
+      (_) {
+        if (identical(_revokingCapture, work)) _revokingCapture = null;
+      },
+      onError: (Object _) {
+        if (identical(_revokingCapture, work)) _revokingCapture = null;
+      },
+    );
+    return work;
+  }
+
   void _invalidateSession() {
+    final capture = _capture;
+    if (_discardSource case final source?) _ownedSources.add(source.path);
     _generation++;
     _session = null;
     _pendingUploadId = null;
@@ -723,13 +790,13 @@ class RecordNotifier extends StateNotifier<RecordState> {
     _pauseTransition = null;
     _discardSource = null;
     state = RecordState(inputDevices: state.inputDevices);
-    unawaited(_cleanupCapture());
+    unawaited(_revokeCapture(capture).catchError((Object _) {}));
   }
 
   @override
   void dispose() {
     _generation++;
-    unawaited(_cleanupCapture());
+    unawaited(_revokeCapture(_capture).catchError((Object _) {}));
     super.dispose();
   }
 }

@@ -474,8 +474,15 @@ void main() {
       await h.tracker.refresh(_key);
       expect(h.notices, isEmpty);
       h.adapter.statusCode = 200;
+      final reads = h.adapter.requests.length;
       await h.tracker.refresh(_key);
-      expect(h.notices, hasLength(1));
+      expect(h.notices, isEmpty);
+      expect(h.adapter.requests, hasLength(reads));
+      h.tracker.track(
+        const ProcessingJob(ownerId: _owner, audioId: _audio, jobId: _otherJob),
+      );
+      await h.until(() => h.notices.length == 1);
+      expect(h.notices.single.key, _otherKey);
       h.tracker.removeAudio(_audio);
       expect(h.notices, isEmpty);
       expect(h.controller.canOpen(_key), isFalse);

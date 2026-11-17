@@ -1,3 +1,73 @@
+# Текущий gate .16 — 2026-11-18
+
+.16 source/tests frozen, status review. Author262 targeted PASS/analyze no issues,
+independent168 tests/format21 PASS; F01–F04 исправлены с regression evidence.
+Native9 XCTest PASS27.8s; Simulator backup exclusion проверен фактически,
+NSFileProtection отсутствует и честно reported unsupported (device strict).
+Media capture/build27.4s и export/build8.0s Simulator PASS; final production
+main Simulator build7.2s/install/launch PASS, unsigned device compile26.0s PASS.
+Compile не является signed install/runtime; physical NOT RUN.
+Reviewer `/root/cleanup_review_finish`: .16-01 reviewed/complete, F01–F04
+fixed with evidence; открытых actionable findings нет. .17 получает handoff
+после сохранения .16 commit/push. Исторические handoffs ниже заменены
+этим gate. Новых source writers .16 без reviewer findings нет.
+
+# Возобновление выбранной очереди — 2026-11-18
+
+Текущее поручение пользователя: закончить задачи предыдущего агента и push;
+разрешены до 10 субагентов. Commit/push текущего результата разрешены.
+Baseline HEAD `3665fae`, начальный diff: три handoff/task документа и посторонний
+`.DS_Store`. Snapshot385 и patch сохранены вне Git:
+`/var/folders/nk/dn15wj451d90zxf_gxkbdgjr0000gn/T/dictai-finish-20261118-t9hbrzty/`.
+`.DS_Store` сохраняется побайтово и не включается в commit.
+
+Scope delta .16 до записи: writer cleanup получает также существующие
+`lib/features/results/presentation/processing_notifier.dart` и
+`test/features/results/processing_recovery_test.dart`,
+`test/features/results/ios_result_detail_test.dart` для согласованного
+fencing confirmed lost access/tombstone и regression; API wire format не меняется.
+
+Дополнительные consumers file policy .16 до записи: cleanup writer получает
+`lib/features/results/data/documents_api.dart` и
+`test/features/results/documents_api_test.dart` для policy/readback временных
+summary/export downloads. Native writer получает
+`ios/Runner/AudioSessionBridge.swift` для проверки фактических attributes
+созданной recorder copy через тот же storage helper. Без новых permissions.
+
+Late-start cleanup .16 до записи: cleanup writer получает
+`lib/features/record/data/ios_audio_capture.dart` и
+`test/features/record/ios_audio_capture_test.dart` для сохранения owned sourcePath
+из matching late native response при dispose без возобновления capture/UI.
+
+Notice integration fixture .16 до записи: cleanup writer получает
+`test/features/results/ios_ready_notice_test.dart` для проверки permanent
+exact-key unavailable fence после pinned404 и сохранения sibling version.
+
+Актуальные writers .16 — `/root/cleanup_prep_finish` и
+`/root/filepolicy_prep_finish` по непересекающимся exact paths следующей таблицы.
+Coordinator `/root` единолично пишет active-plan/PLAN и последующие handoffs.
+Reviewer .16-01 — `/root/cleanup_review_finish`, только свой отчёт.
+.17 начнётся после checks/review .16; .18/.19 пока только read-only исследование
+внешних prerequisites агентом `/root/readiness_audit` без устройства/signing/API mutations.
+Исторические назначения ниже не разрешают параллельную запись.
+
+# Текущий handoff .16 — 2026-11-18
+
+.15 checks/review завершены, commit3665fae/push origin/main. .16 in_progress,
+owner `/root/cleanup_prep_finish`. Разрешена параллельная запись только в точные
+непересекающиеся области одной выбранной задачи ниже. Остальные исходники frozen;
+.17 пока read-only до checks/review .16. Root единолично пишет реестр/PLAN,
+карточку .16 пишет только main implementer. Reviewer `/root/cleanup_review_finish`
+получает только reserved REVIEW-FE-002.16-01 report.
+
+| Writer | Exact write paths |
+|---|---|
+| `/root/filepolicy_prep_finish` | lib/core/storage/ios_file_policy.dart; ios/Runner/StoragePolicyBridge.swift; ios/Runner/AppDelegate.swift; ios/Runner.xcodeproj/project.pbxproj; test/core/storage/ios_file_policy_test.dart; ios/RunnerTests/RunnerTests.swift |
+| `/root/cleanup_prep_finish` | lib/features/results/presentation/results_notifier.dart; lib/features/results/presentation/result_detail_notifier.dart; lib/features/results/data/original_audio_cache.dart; lib/features/record/data/pending_upload_store.dart; lib/features/results/data/pending_job_store.dart; lib/shared/providers/providers.dart; lib/features/record/presentation/anonymous_record_notifier.dart; lib/features/record/presentation/label_speakers_modal.dart; lib/features/record/data/audio_ingest_api.dart; lib/features/record/data/anonymous_session_api.dart; test/features/results/ios_account_cleanup_test.dart; docs/ai/tasks/TASK-FE-002.16.md; lib/features/record/data/dto/anonymous_session_dto.dart; lib/features/record/data/ios_wav_import.dart; test/features/record/ios_wav_import_test.dart; lib/features/record/presentation/record_notifier.dart; test/features/record/record_discard_test.dart |
+
+Native API/consumer coordination перед записью общих interfaces; никто не пишет
+в файлы другого writer. Необходимое расширение scope сначала записывает root.
+
 # Текущий этап — 2026-11-18
 
 .15 source/tests frozen, task review:118 targeted/format5/analyze PASS7 info.
@@ -168,7 +238,7 @@ Coordinator primary-agent единолично пишет этот реестр,
 | REVIEW-FE-002.13-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.13-01.md | created |
 | REVIEW-FE-002.14-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.14-01.md | created |
 | REVIEW-FE-002.15-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.15-01.md | created |
-| REVIEW-FE-002.16-01 | /root/cleanup_review_finish | docs/ai/reviews/REVIEW-FE-002.16-01.md | reserved |
+| REVIEW-FE-002.16-01 | /root/cleanup_review_finish | docs/ai/reviews/REVIEW-FE-002.16-01.md | created |
 | REVIEW-FE-002.17-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.17-01.md | reserved |
 | REVIEW-FE-002.18-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.18-01.md | reserved |
 | REVIEW-FE-002.19-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.19-01.md | reserved |

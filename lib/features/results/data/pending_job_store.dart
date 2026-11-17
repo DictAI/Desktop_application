@@ -31,6 +31,31 @@ final class PendingJobStore {
   final bool Function() _isCurrentSession;
   final _deleted = <ProcessingKey>{};
   final _deletedAudio = <String>{};
+  final _deletionListeners = <void Function(String)>{};
+  final _unavailableListeners = <void Function(ProcessingKey)>{};
+
+  void Function() listenUnavailable(void Function(ProcessingKey) listener) {
+    _unavailableListeners.add(listener);
+    return () => _unavailableListeners.remove(listener);
+  }
+
+  /// A pinned R03 404 may name a missing version of an otherwise live audio.
+  /// Fence only that version; a confirmed R02/latest-result loss is audio-wide.
+  void markUnavailable(ProcessingKey key) {
+    _check();
+    if (!_deleted.add(key)) return;
+    for (final listener in _unavailableListeners.toList()) {
+      listener(key);
+    }
+  }
+
+  /// Synchronous fencing for consumers outside the processing tracker, including
+  /// latest-job resolution, active decoders and native share sheets.
+  void Function() listenDeleted(void Function(String) listener) {
+    _deletionListeners.add(listener);
+    return () => _deletionListeners.remove(listener);
+  }
+
   String get ownerId => uploads.ownerId;
 
   void _check() {
@@ -42,7 +67,10 @@ final class PendingJobStore {
 
   void markDeleted(String audioId) {
     _check();
-    _deletedAudio.add(audioId);
+    if (!_deletedAudio.add(audioId)) return;
+    for (final listener in _deletionListeners.toList()) {
+      listener(audioId);
+    }
   }
 
   ProcessingJob fromAccepted(PendingUpload entry) {

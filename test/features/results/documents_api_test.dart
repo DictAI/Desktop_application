@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:dict_ai/core/error/app_exception.dart';
 import 'package:dict_ai/core/network/api_client.dart';
 import 'package:dict_ai/core/storage/secure_storage.dart';
+import 'package:dict_ai/core/storage/ios_file_policy.dart';
+import 'package:flutter/services.dart';
 import 'package:dict_ai/features/results/data/documents_api.dart';
 import 'package:dict_ai/features/results/data/dto/document_kind.dart';
 import 'package:dio/dio.dart';
@@ -78,6 +80,7 @@ class _Legacy implements LegacyPreferences {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory temporary;
   late ScriptedAdapter adapter;
   late Dio dio;
@@ -96,6 +99,79 @@ void main() {
   void enqueue(ResponseBody body) => adapter.defer().complete(body);
   Future<void> noPartial() async =>
       expect(await temporary.list().toList(), isEmpty);
+
+  for (final declared in [false, true]) {
+    test(
+      'local document quota rejects ${declared ? 'declared' : 'streamed'} overflow and removes private staging',
+      () async {
+        api = DocumentsApi(dio, maxDocumentBytes: 16);
+        enqueue(
+          response(
+            List<int>.filled(17, 65),
+            contentType: 'text/plain',
+            declaredLength: declared ? 17 : null,
+          ),
+        );
+        await expectLater(
+          api.getDocument(
+            'audio-fixture',
+            DocumentKind.transcriptTxt,
+            temporaryDirectory: temporary,
+          ),
+          throwsA(isA<ValidationException>()),
+        );
+        await noPartial();
+      },
+    );
+  }
+
+  for (final failAfterWrite in [false, true]) {
+    test(
+      'native policy failure ${failAfterWrite ? 'after write' : 'before transfer'} fails closed and removes downloads',
+      () async {
+        const channel = MethodChannel('test.dictai/documents_policy');
+        final calls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              final path = (call.arguments as Map)['path'] as String;
+              calls.add(path);
+              if (!failAfterWrite || path.endsWith('.txt')) {
+                throw PlatformException(code: 'attributes_unavailable');
+              }
+              return {
+                'excludedFromBackup': true,
+                'protection': 'completeUntilFirstUserAuthentication',
+                'protectionVerified': true,
+                'environment': 'device',
+              };
+            });
+        addTearDown(
+          () => TestDefaultBinaryMessengerBinding
+              .instance
+              .defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null),
+        );
+        api = DocumentsApi(
+          dio,
+          filePolicy: const IosFilePolicy(channel: channel, enabled: true),
+        );
+        enqueue(
+          response(utf8.encode('Synthetic text'), contentType: 'text/plain'),
+        );
+        await expectLater(
+          api.getDocument(
+            'audio-fixture',
+            DocumentKind.transcriptTxt,
+            temporaryDirectory: temporary,
+          ),
+          throwsA(isA<ValidationException>()),
+        );
+        expect(adapter.requests.length, failAfterWrite ? 1 : 0);
+        expect(calls.length, failAfterWrite ? 2 : 1);
+        await noPartial();
+      },
+    );
+  }
 
   test(
     '401 never subscribes to a body behind asynchronous auth cleanup',

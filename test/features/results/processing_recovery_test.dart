@@ -643,11 +643,106 @@ void main() {
           expect(result.status, isNull);
           expect(result.retryIn, isNull);
         }
-        expect(store.isDeleted(key), isFalse);
+        expect(store.isDeleted(key), code == 503 ? isFalse : isTrue);
+        if (code != 503) {
+          // A manual refresh or stale R01 row cannot revive this missing version.
+          await tracker.refresh(key);
+          tracker.track(job);
+        }
         expect(adapter.requests, hasLength(3));
       },
     );
   }
+
+  test(
+    'confirmed R02 cancels every sibling version and removes its canonical',
+    () async {
+      adapter
+        ..enqueue(200, status(transcript: 'ready'))
+        ..enqueue(200, canonical());
+      tracker.track(job);
+      await until(tracker, (s) => s[key]?.canonicalReady == true);
+      final held = adapter.defer();
+      const sibling = ProcessingJob(
+        ownerId: owner,
+        audioId: audio,
+        jobId: 'other-version',
+      );
+      tracker.track(sibling);
+      for (var i = 0; i < 100 && adapter.requests.length < 3; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final siblingToken = adapter.requests[2].cancelToken!;
+      tracker.removeAudio(audio);
+      expect(siblingToken.isCancelled, isTrue);
+      expect(tracker.state, isEmpty);
+      held.complete(
+        ScriptedAdapter.reply(200, {...status(), 'job_id': 'other-version'}),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(tracker.state.containsKey(sibling.key), isFalse);
+    },
+  );
+
+  test(
+    'pinned R03 404 fences only the missing version and preserves a live sibling',
+    () async {
+      adapter
+        ..enqueue(200, status(transcript: 'ready'))
+        ..enqueue(200, canonical());
+      tracker.track(job);
+      await until(tracker, (s) => s[key]?.canonicalReady == true);
+      const missing = ProcessingJob(
+        ownerId: owner,
+        audioId: audio,
+        jobId: 'missing-version',
+      );
+      adapter.enqueue(404, {'error': 'job version missing'});
+      tracker.track(missing);
+      await until(tracker, (s) => s[missing.key]?.error != null);
+      expect(store.isDeleted(missing.key), isTrue);
+      expect(store.isDeleted(key), isFalse);
+      expect(tracker.state[key]!.canonicalReady, isTrue);
+      final reads = adapter.requests.length;
+      await tracker.refresh(missing.key);
+      tracker.track(missing);
+      expect(adapter.requests, hasLength(reads));
+    },
+  );
+
+  test('anonymous TTL 404 does not tombstone the owner recording', () async {
+    adapter
+      ..enqueue(200, status())
+      ..enqueue(404, {'error': 'session expired'});
+    tracker.track(
+      const ProcessingJob(
+        ownerId: owner,
+        audioId: audio,
+        jobId: jobId,
+        processingVersion: 'fixture-v1',
+        sessionId: sessionId,
+      ),
+    );
+    await until(tracker, (s) => s[key]?.error != null);
+    expect(store.isDeleted(key), isFalse);
+    adapter
+      ..enqueue(200, status(transcript: 'ready'))
+      ..enqueue(200, canonical());
+    await tracker.refresh(key);
+    expect(tracker.state[key]!.canonicalReady, isTrue);
+  });
+
+  test(
+    'canonical artifact 404 does not tombstone an existing result',
+    () async {
+      adapter
+        ..enqueue(200, status(transcript: 'ready'))
+        ..enqueue(404, {'error': 'artifact unavailable'});
+      tracker.track(job);
+      await until(tracker, (s) => s[key]?.error != null);
+      expect(store.isDeleted(key), isFalse);
+    },
+  );
 
   test(
     'foreign canonical owner is rejected even when status IDs match',

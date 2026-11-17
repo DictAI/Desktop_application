@@ -146,6 +146,50 @@ void main() {
     await directory.delete(recursive: true);
   });
 
+  test(
+    'late matching Start retains only its owned path after disposal',
+    () async {
+      final gate = Completer<Map<String, Object?>>();
+      final entered = Completer<String>();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'start') {
+              entered.complete((call.arguments as Map)['id'] as String);
+              return gate.future;
+            }
+            return null;
+          });
+      final published = <CaptureStatus>[];
+      final subscription = capture.captureEvents.listen(
+        (event) => published.add(event.status),
+      );
+      final starting = expectLater(
+        capture.start(),
+        throwsA(isA<AppException>()),
+      );
+      final id = await entered.future;
+      final disposal = capture.dispose();
+      native.events.add({
+        'id': 'another-recorder',
+        'revision': 999,
+        'status': 'recording',
+        'path': '${native.file.path}.foreign',
+      });
+      gate.complete({
+        'id': id,
+        'revision': 1,
+        'status': 'recording',
+        'path': native.file.path,
+      });
+      await starting;
+      await disposal;
+      expect(capture.sourcePath, native.file.path);
+      expect(capture.status, CaptureStatus.disposed);
+      expect(published, isEmpty);
+      await subscription.cancel();
+    },
+  );
+
   test('iOS probe does not activate a session or request permission', () async {
     expect(await capture.listInputDevices(), isEmpty);
     expect(native.calls, isEmpty);

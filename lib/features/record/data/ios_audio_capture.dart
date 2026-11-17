@@ -73,10 +73,13 @@ final class IosAudioCapture implements AudioCapture, AudioCaptureEvents {
 
   void _apply(Map<dynamic, dynamic> value) {
     final revision = value['revision'];
-    if (_disposeRequested || revision is! int || revision < _revision) return;
+    if (value['id'] != _id || revision is! int || revision < _revision) return;
     _revision = revision;
     final path = value['path'];
+    // A matching command can settle after logout requested disposal. Retain
+    // only its first owned path for cleanup, without restoring recorder state.
     if (path is String) _path ??= path;
+    if (_disposeRequested) return;
     // Stream faults have no native revision. A delayed command reply may still
     // recover the owned path, but cannot restore an unobservable recorder.
     if (_streamFailed) return;

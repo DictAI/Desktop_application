@@ -69,13 +69,26 @@ final class ResultsState {
 final class ResultsNotifier extends StateNotifier<ResultsState> {
   ResultsNotifier(this._api, this._session, this._tracker)
     : super(const ResultsState()) {
-    unawaited(_session.cancelToken.whenCancel.then((_) => _cancelRequests()));
+    _removeDeletionListener = _session.jobs.listenDeleted(
+      (_) => _applyTombstones(),
+    );
+    _removeUnavailableListener = _session.jobs.listenUnavailable(
+      (_) => _applyTombstones(),
+    );
+    unawaited(
+      _session.cancelToken.whenCancel.then((_) {
+        _cancelRequests();
+        if (mounted) state = const ResultsState();
+      }),
+    );
     unawaited(refresh());
   }
 
   final ResultsApi _api;
   final BatchSession _session;
   final ProcessingNotifier _tracker;
+  late final void Function() _removeDeletionListener;
+  late final void Function() _removeUnavailableListener;
   CancelToken? _pageRequest;
   final _deletions = <CancelToken>{};
   final _pruning = <String>{};
@@ -198,7 +211,7 @@ final class ResultsNotifier extends StateNotifier<ResultsState> {
     try {
       final listing = await _session.uploads.list();
       if (!current()) return;
-      state = state.copyWith(uploads: AsyncData(listing));
+      state = state.copyWith(uploads: AsyncData(_visibleUploads(listing)));
       await _reconcileJobs();
     } on AppException catch (error, stack) {
       if (current()) {
@@ -348,14 +361,20 @@ final class ResultsNotifier extends StateNotifier<ResultsState> {
     try {
       await _api.deleteResult(audioId, cancelToken: request);
       if (!_current) return;
-      _tracker.removeAudio(audioId);
-      await _readPage();
+      await _confirmRemoved(audioId);
+      await refresh();
     } on AppException catch (error) {
       if (_current) {
-        state = state.copyWith(
-          actionMessage: error.message,
-          actionFailed: true,
-        );
+        if (error is NotFoundException ||
+            error is ApiFailure && error.kind == ApiFailureKind.notFound) {
+          await _confirmRemoved(audioId);
+          await refresh();
+        } else {
+          state = state.copyWith(
+            actionMessage: error.message,
+            actionFailed: true,
+          );
+        }
       }
     } finally {
       _deletions.remove(request);
@@ -364,6 +383,58 @@ final class ResultsNotifier extends StateNotifier<ResultsState> {
           deleting: Set.unmodifiable(
             state.deleting.where((id) => id != audioId),
           ),
+        );
+      }
+    }
+  }
+
+  PendingUploadListing _visibleUploads(PendingUploadListing listing) =>
+      PendingUploadListing(
+        listing.entries.where((entry) {
+          final receipt = entry.accepted;
+          return receipt == null ||
+              !_session.jobs.isDeleted((
+                audioId: receipt.audioId,
+                jobId: receipt.jobId,
+              ));
+        }).toList(),
+        listing.damagedEntries,
+      );
+
+  void _applyTombstones() {
+    if (!_current) return;
+    final page = state.page.asData?.value;
+    final uploads = state.uploads.asData?.value;
+    state = state.copyWith(
+      page: page == null
+          ? null
+          : AsyncData(
+              ResultsPageDto(
+                data: List.unmodifiable(
+                  page.data.where(
+                    (row) => !_session.jobs.isDeleted((
+                      audioId: row.audioId,
+                      jobId: row.resultId,
+                    )),
+                  ),
+                ),
+                pagination: page.pagination,
+              ),
+            ),
+      uploads: uploads == null ? null : AsyncData(_visibleUploads(uploads)),
+    );
+  }
+
+  Future<void> _confirmRemoved(String audioId) async {
+    _tracker.removeAudio(audioId);
+    try {
+      await _session.jobs.forgetAudio(audioId);
+    } on AppException {
+      if (_current) {
+        state = state.copyWith(
+          actionMessage:
+              'Результат удалён. Не удалось очистить локальный журнал.',
+          actionFailed: true,
         );
       }
     }
@@ -382,6 +453,8 @@ final class ResultsNotifier extends StateNotifier<ResultsState> {
 
   @override
   void dispose() {
+    _removeDeletionListener();
+    _removeUnavailableListener();
     _cancelRequests();
     super.dispose();
   }
