@@ -29,6 +29,7 @@ import '../../features/results/presentation/audio_player.dart';
 import '../../features/results/data/speech_status_api.dart';
 import '../../features/results/data/pending_job_store.dart';
 import '../../features/results/presentation/processing_notifier.dart';
+import '../../features/results/presentation/result_ready_notice.dart';
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,24 @@ final processingNotifierProvider = StateNotifierProvider.autoDispose
         isCurrentSession: session.isCurrentSession,
       ),
     );
+
+final resultReadyNoticeProvider = StateNotifierProvider.autoDispose
+    .family<ResultReadyNoticeController, List<ProcessingJob>, BatchSession>((
+      ref,
+      session,
+    ) {
+      final controller = ResultReadyNoticeController(
+        tracker: ref.watch(
+          processingNotifierProvider(session.processingSession).notifier,
+        ),
+        ownerId: session.ownerId,
+        isCurrentSession: () => session.isCurrent,
+        isDeleted: session.jobs.isDeleted,
+      );
+      // BatchSession closes the tracker synchronously on logout/401. Its empty
+      // publication clears this controller before another account can render.
+      return controller;
+    });
 
 final batchApplicationSupportDirectoryProvider =
     Provider<Future<Directory> Function()>(

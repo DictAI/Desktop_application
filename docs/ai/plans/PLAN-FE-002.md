@@ -12,6 +12,12 @@ requirements_revision: "ios-2026-11-16"
 
 # PLAN-FE-002: DictAI для iOS/iPhone
 
+## Текущий handoff .15 — 2026-11-18
+
+.14 checks/review завершены, commit bdfc370/push origin/main. .15 review,118 targeted/format5/analyze PASS7 info, final main build8.5s/install/launch PASS,
+owner `/root/notice_prep_finish`, exact frontmatter scope; независимый reviewer
+`/root/media_review_finish`, .15-01 reviewed/complete. Physical ограничения сохраняются.
+
 ## Текущий gate .14 — 2026-11-18
 
 .14 review:102 targeted tests/format5/analyze PASS7 info. Нативная export phase
@@ -296,7 +302,7 @@ Owner unassigned относится к будущей реализации; plan
 | [TASK-FE-002.12](../tasks/TASK-FE-002.12.md) | Показать большой транскрипт с говорящими и таймкодами | review | TASK-FE-002.11 | /root/detail_prep | Exact paths в карточке |
 | [TASK-FE-002.13](../tasks/TASK-FE-002.13.md) | Добавить iOS аудиоплеер и принадлежащий аккаунту cache | review | TASK-FE-002.12 | /root | Exact paths в карточке |
 | [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | review | TASK-FE-002.13 | /root/export_prep_finish | Exact paths в карточке |
-| [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | draft | TASK-FE-002.14 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | review | TASK-FE-002.14 | /root/notice_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | draft | TASK-FE-002.15 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.17](../tasks/TASK-FE-002.17.md) | Закрепить iOS batch-сценарий регрессионными проверками | draft | TASK-FE-002.16 | unassigned | Exact paths в карточке |
 | [TASK-FE-002.18](../tasks/TASK-FE-002.18.md) | Подтвердить реальный iPhone E2E и platform readiness | draft | TASK-FE-002.17 | unassigned | Exact paths в карточке |

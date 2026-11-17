@@ -1,5 +1,19 @@
 # Текущий этап — 2026-11-18
 
+.15 source/tests frozen, task review:118 targeted/format5/analyze PASS7 info.
+F01 child remount исправлен со stateful regression. Final main Simulator build8.5s/install/launch PASS. Independent .15-01 reviewed/complete, F01 исправлен, открытых source findings нет. .16 gate ещё не открыт.
+
+
+.14 завершена в host/Simulator scope и сохранена commit bdfc370/push origin/main.
+.15 exact scope дополнен существующим test/core/router/ios_navigation_test.dart:
+необходимая integration fixture поправка — чередование widget pump и real async
+для journal restore, стартующего теперь при authenticated shell mount. Assertions
+на реальные routes/число GET/session cleanup сохраняются; reviewer проверяет delta.
+.15 получает sole write после checks/review .14: `/root/notice_prep_finish`,
+exact source/tests/card scope из frontmatter. Reviewer `/root/media_review_finish`,
+только reserved REVIEW-FE-002.15-01 report. .16/.17 пока read-only.
+
+
 .14 status review:102 targeted tests/format5/analyze PASS7 info. Native export
 phase после F03 PASS на iPhone17Pro и iPadPro11M5 Simulator/iOS26.5 (build9.2s,
 четыре CHECK и PASS export на каждом). Final main build7.8s/install/launch обоих Simulator PASS. .14-01 reviewed/complete, F01–F03 исправлены, открытых findings нет; source
@@ -153,8 +167,8 @@ Coordinator primary-agent единолично пишет этот реестр,
 | REVIEW-FE-002.12-01 | /root/acceptance_review | docs/ai/reviews/REVIEW-FE-002.12-01.md | created |
 | REVIEW-FE-002.13-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.13-01.md | created |
 | REVIEW-FE-002.14-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.14-01.md | created |
-| REVIEW-FE-002.15-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.15-01.md | reserved |
-| REVIEW-FE-002.16-01 | /root/platform_review | docs/ai/reviews/REVIEW-FE-002.16-01.md | reserved |
+| REVIEW-FE-002.15-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.15-01.md | created |
+| REVIEW-FE-002.16-01 | /root/cleanup_review_finish | docs/ai/reviews/REVIEW-FE-002.16-01.md | reserved |
 | REVIEW-FE-002.17-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.17-01.md | reserved |
 | REVIEW-FE-002.18-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.18-01.md | reserved |
 | REVIEW-FE-002.19-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.19-01.md | reserved |

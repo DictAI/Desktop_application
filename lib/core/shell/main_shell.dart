@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../../features/auth/presentation/auth_notifier.dart';
 import '../../features/record/presentation/record_exit_guard.dart';
 import '../../features/record/presentation/record_notifier.dart';
+import '../../features/results/presentation/result_ready_notice.dart';
 
 /// На iOS и узких окнах разделы доступны через нижнюю панель.
 class MainShell extends ConsumerWidget {
@@ -52,7 +53,13 @@ class MainShell extends ConsumerWidget {
                   backgroundColor: AppColors.background,
                   actions: [_LogoutButton(ref: ref, compact: true)],
                 ),
-                body: SafeArea(top: false, bottom: false, child: child),
+                body: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: Theme.of(context).platform == TargetPlatform.iOS
+                      ? ResultReadyNoticeHost(child: child)
+                      : child,
+                ),
                 bottomNavigationBar: NavigationBar(
                   backgroundColor: AppColors.surface,
                   indicatorColor: AppColors.surfaceElevated,

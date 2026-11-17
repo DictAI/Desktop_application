@@ -350,15 +350,28 @@ void main() {
 
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pump();
-      await tester.runAsync(() async {
-        final session = await container.read(batchSessionProvider.future);
-        for (var attempt = 0; attempt < 100; attempt++) {
-          final state = container.read(resultsNotifierProvider(session));
-          if (!state.page.isLoading && !state.uploads.isLoading) return;
-          await Future<void>.delayed(const Duration(milliseconds: 5));
+      final session = (await tester.runAsync(
+        () => container.read(batchSessionProvider.future),
+      ))!;
+      var loaded = false;
+      for (var attempt = 0; attempt < 100; attempt++) {
+        // The shell can restore the journal before Results mounts. Advance
+        // widget-zone callbacks as well as real filesystem work on each turn.
+        await tester.pump(const Duration(milliseconds: 10));
+        final state = container.read(resultsNotifierProvider(session));
+        if (!state.page.isLoading && !state.uploads.isLoading) {
+          loaded = true;
+          break;
         }
-        fail('Results did not load its page and journal');
-      });
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+      }
+      expect(
+        loaded,
+        isTrue,
+        reason: 'Results did not load its page and journal',
+      );
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/results');
       expect(selected(tester), 2);
