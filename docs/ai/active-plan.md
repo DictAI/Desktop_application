@@ -1,3 +1,61 @@
+# Итог продолжения — 2026-11-18
+
+Завершён выбранный доступный scope .16/.17. .16 сохранена commit `8da7b55` и
+push origin/main; .16-01 reviewed/complete, F01–F04 fixed. .17 status review,
+owner `/root`:5 новых joined tests, весь803 host suite PASS34s, analyze no issues,
+scoped format PASS. Full format отмечает5 исходных файлов вне scope, hashes
+baseline совпадают; общий format не объявляется PASS. Reviewer независимо
+повторил5tests/format1 и подтвердил review .17-01 complete без findings.
+
+.18/.19 status blocked, owner `/root`; создано только prerequisite evidence и
+opt-in device/backend/release harness. Signing0/team отсутствует, device DDI/
+tunnel недоступны, актуальные runtime/operator/accounts/privacy/Store inputs
+не подтверждены; account-delete HTTP отсутствует в backend. Hardware E2E,
+physical Data Protection, signed candidate/archive/Store NOT RUN. Review
+документов .18-01/.19-01 reviewed/complete и не снимает external blockers.
+Никаких backend/device/signing/dependency/permission/release mutations.
+
+User acceptance не присваивается. Текущий commit/push выбранного результата
+разрешён пользователем и выполняется coordinator после final doc review.
+Посторонний `.DS_Store` сохранён побайтово и исключён из commits. Ниже —
+исторические назначения; активных source writers после final freeze нет.
+
+# Финальная проверка .17 и внешние blockers — 2026-11-18
+
+.16 commit `8da7b55` отправлен в origin/main. .17 source/test/docs frozen,
+owner `/root`, status review:5 новых joined tests, полный803 host suite PASS34s,
+analyze no issues; scoped format PASS, full format5 baseline-only failures.
+.18/.19 owner `/root`, blocked, выполнена только prerequisite documentation;
+подпись/физический E2E/runtime readiness/candidate/Store не выдумываются.
+Coordinator sole write PLAN/registry/task17–19/новых docs; runtime sources frozen.
+Final reviewer `/root/final_regression_review` имеет только write paths:
+`docs/ai/reviews/REVIEW-FE-002.17-01.md`,
+`docs/ai/reviews/REVIEW-FE-002.18-01.md`,
+`docs/ai/reviews/REVIEW-FE-002.19-01.md`.
+Исторический reserved owner .17–19 заменён ниже до делегирования.
+
+# Продолжение .17 и blockers .18/.19 — 2026-11-18
+
+После quota interruption implementer `/root/batch_regression` передал готовые
+5 joined tests (targeted PASS); background Flutter jobs не осталось. Coordinator
+`/root` принимает sole write .17 source/test/docs/card в прежнем exact scope,
+завершает full regression/verification и организационные документы. Новых
+production source изменений нет. Прежний implementer больше не пишет.
+.16 commit `8da7b55` уже отправлен в origin/main; его source/platform frozen.
+
+# Текущий handoff .17 — 2026-11-18
+
+.16 завершена в host/Simulator scope и сохранена commit `8da7b55`, push origin/main
+успешен. .16-01 reviewed/complete, F01–F04 fixed; physical критерии открыты.
+.17 in_progress: owner `/root/batch_regression`, exact sole write paths:
+`test/features/ios_batch_regression_test.dart`, `test/support/fakes.dart`,
+`docs/testing/IOS_REGRESSION.ru.md`, `docs/ai/tasks/TASK-FE-002.17.md`.
+Остальные source/tests .16 frozen. Coordinator `/root` единолично пишет PLAN,
+registry, карточки .18/.19 и docs IOS_DEVICE_E2E/IOS_BACKEND_GATE/IOS_RELEASE
+для prerequisite inventory/blocked evidence, без candidate/native изменений.
+Reviewer `/root/cleanup_review_finish` получает только reserved reports
+.17-01/.18-01/.19-01; implementation/docs authors независимы от reviewer.
+
 # Текущий gate .16 — 2026-11-18
 
 .16 source/tests frozen, status review. Author262 targeted PASS/analyze no issues,
@@ -239,9 +297,9 @@ Coordinator primary-agent единолично пишет этот реестр,
 | REVIEW-FE-002.14-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.14-01.md | created |
 | REVIEW-FE-002.15-01 | /root/media_review_finish | docs/ai/reviews/REVIEW-FE-002.15-01.md | created |
 | REVIEW-FE-002.16-01 | /root/cleanup_review_finish | docs/ai/reviews/REVIEW-FE-002.16-01.md | created |
-| REVIEW-FE-002.17-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.17-01.md | reserved |
-| REVIEW-FE-002.18-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.18-01.md | reserved |
-| REVIEW-FE-002.19-01 | unassigned | docs/ai/reviews/REVIEW-FE-002.19-01.md | reserved |
+| REVIEW-FE-002.17-01 | /root/final_regression_review | docs/ai/reviews/REVIEW-FE-002.17-01.md | created |
+| REVIEW-FE-002.18-01 | /root/final_regression_review | docs/ai/reviews/REVIEW-FE-002.18-01.md | created |
+| REVIEW-FE-002.19-01 | /root/final_regression_review | docs/ai/reviews/REVIEW-FE-002.19-01.md | created |
 
 Ниже сохранена история; новые explicit selection/acceptance имеют приоритет.
 

@@ -2,8 +2,8 @@
 id: "TASK-FE-002.17"
 plan: "PLAN-FE-002"
 title: "Закрепить iOS batch-сценарий регрессионными проверками"
-status: "draft"
-owner: "unassigned"
+status: "review"
+owner: "/root"
 priority: "P1"
 delivery_stage: "ios"
 depends_on: ["TASK-FE-002.16"]
@@ -14,6 +14,63 @@ implementation_selected: true
 ---
 
 # TASK-FE-002.17: Закрепить iOS batch-сценарий регрессионными проверками
+
+## Реализация — 2026-11-18
+
+Продолжено прямое поручение пользователя закончить прежнюю очередь и push.
+Dependency .16 прошла checks/independent review и отправлена в origin/main
+commit `8da7b55`. Автор `/root/batch_regression` подготовил пять joined tests и
+первый targeted PASS, затем его turn остановлен quota. Coordinator `/root`
+принял sole write, проверил готовые файлы, завершил full regression и docs;
+owner передан до записи в active-plan. Production source .16 не менялся.
+
+Новый `test/features/ios_batch_regression_test.dart` использует реальные
+AuthApi/AuthNotifier/AuthInterceptor, workspace API, IosWavImporter/WavValidator,
+RecordNotifier/BatchSession/journal/processing/detail/notice, original cache,
+ResultAudioController, exporter и ResultsNotifier. Подменены только HTTP,
+Keychain storage и native capture/decoder/share boundaries. Нет sockets,
+настоящего микрофона, Keychain или runtime demo mocks.
+
+Пять сценариев: Files и microphone полные flow (два tests), invalid Files и
+permission refusal, suspend/late A response после login B, unknown upload outcome
+с restart/A→B→A и явным same-key replay. Проверяются bearer/workspace/options/key,
+owner/audio/job/version canonical, decoded/exported bytes, сохранность user Files,
+R02 fences для detail/notice/tracker/list и отсутствие лишнего POST. Отдельные
+existing suites покрывают permission prompt, interruption, route changes и 401;
+матрица и opt-in harness находятся в
+[IOS_REGRESSION.ru.md](../../testing/IOS_REGRESSION.ru.md).
+
+## Verification реализации
+
+Cwd `/Users/mxdnght/dictai-app`, macOS26.5.2 arm64, pinned
+Flutter3.41.3/Dart3.11.1 из `/tmp/dictai-flutter-3.41.3`, prepared locked packages.
+SDK/dependencies/lock не обновлялись, `pub get` не выполнялся.
+
+| Command / scenario | Actual | Status | Limitation |
+|---|---|---|---|
+| `flutter --no-version-check test --no-pub test/features/ios_batch_regression_test.dart --reporter expanded` | Author5/5 PASS; `/tmp/dictai-fe00217-targeted-initial.log` | PASS | Fake native/HTTP/Keychain boundaries |
+| `flutter --no-version-check test --no-pub --reporter expanded` | Coordinator803/803 PASS34s; `/tmp/dictai-finish-20261118-full-regression.log` | PASS | Все host unit/widget suites; не device E2E |
+| `flutter --no-version-check analyze --no-pub` | No issues, exit0; `/tmp/dictai-finish-20261118-analyze.log` | PASS | Production/test Dart, не hardware |
+| Direct pinned `dart format --output=none --set-exit-if-changed test/features/ios_batch_regression_test.dart` | 1 file/0 changed, exit0 | PASS | Изменённый Dart scope |
+| Direct pinned `dart format --output=none --set-exit-if-changed lib test` | 125 files,5 would change, exit1; `/tmp/dictai-finish-20261118-full-format.log` | FAIL baseline | app_colors/app_theme/anthropic_service/chat_panel/main уже такими в initial snapshot; hashes всех5 совпадают, посторонний scope не форматировался |
+| YAML/DAG/table/status/owner/scope/links/whitespace/full tracked+untracked diff | Coordinator/reviewer PASS, review .17-01 reviewed/complete | PASS | Только docs/source integrity |
+| .16 production main Simulator7.2s/install/launch и unsigned device26.0s | PASS до test/doc-only .17 diff; runtime sources frozen в `8da7b55` | PASS reused source evidence | Повторный native build не требуется для test/docs; не hardware PASS |
+| Opt-in iPhone/backend harness, physical permissions/lock/Files/Keychain/model/peak RAM | Не запускался | NOT RUN | Signing/device services/operator/accounts отсутствуют; .18 blocked |
+| Независимые reports .17-01/.18-01/.19-01 | Reviewed/complete, actionable findings нет; targeted5/format1 повторены reviewer | PASS | Review не присваивает accepted |
+
+## Result реализации
+
+Добавлены новый integration regression test и IOS_REGRESSION.ru.md, обновлена
+эта карточка. `test/support/fakes.dart` сохранён без изменений; новые packages,
+production source, backend и platform permissions не менялись. Пять новых
+сценариев и весь803 host suite PASS, analyze no issues. Полная форматная команда
+сохраняет пять подтверждённых baseline failures вне scope; изменённый файл clean.
+Harness отделяет synthetic assertions от opt-in hardware/backend evidence и
+согласован с [device шагами](../../testing/IOS_DEVICE_E2E.ru.md) /
+[backend gate](../../testing/IOS_BACKEND_GATE.ru.md). Невыполненные physical
+сценарии не объявлены PASS, user acceptance отсутствует. Status review до
+пользовательской приёмки. Независимый [REVIEW-FE-002.17-01](../reviews/REVIEW-FE-002.17-01.md)
+reviewed/complete, actionable findings нет; reviewer5 tests/format1 PASS.
 
 ## Текущее поручение — 2026-11-17
 
@@ -41,11 +98,11 @@ Reuse: [TASK-FE-001.06](../tasks/TASK-FE-001.06.md), [TASK-FE-001.35](../tasks/T
 
 ## Acceptance criteria
 
-- [ ] Набор покрывает login/workspace→mic или Files→WAV validation→upload/202→canonical→player/export→delete/logout по существующим контрактам.
-- [ ] Проверены permission refusal/interruption/suspend/network failure/unknown upload outcome/restart/account change; нет пустых tests и runtime demo mocks.
-- [ ] Fixtures синтетические, virtual timers/fakes не читают настоящий Keychain/микрофон/API; unit/widget и opt-in device E2E разделены.
-- [ ] Подготовлен opt-in ручной device/backend harness с точными шагами, предусловиями и evidence для .18; автоматизированный unit/widget regression не зависит от новых packages.
-- [ ] Назначенный owner реализовал exact scope, записал реальные проверки и получил внутренний независимый review; существенные findings устранены или явно переданы как ограничения, `accepted` не выставлен автоматически.
+- [x] Набор покрывает login/workspace→mic или Files→WAV validation→upload/202→canonical→player/export→delete/logout по существующим контрактам.
+- [x] Проверены permission refusal/interruption/suspend/network failure/unknown upload outcome/restart/account change; нет пустых tests и runtime demo mocks.
+- [x] Fixtures синтетические, virtual timers/fakes не читают настоящий Keychain/микрофон/API; unit/widget и opt-in device E2E разделены.
+- [x] Подготовлен opt-in ручной device/backend harness с точными шагами, предусловиями и evidence для .18; автоматизированный unit/widget regression не зависит от новых packages.
+- [x] Назначенный owner реализовал exact scope, записал реальные проверки и получил внутренний независимый review; существенные findings устранены или явно переданы как ограничения, `accepted` не выставлен автоматически.
 
 ## Implementation notes
 
@@ -60,7 +117,7 @@ owner и выбрать реализацию. Отсутствующие пут�
 Review организует координатор агентами; промежуточное review пользователя
 не требуется. Commit/push/merge/release отдельно не разрешены.
 
-## Verification
+## Verification planning baseline
 
 Cwd: корень frontend. SDK/host/device записываются при выполнении.
 
@@ -69,7 +126,7 @@ Cwd: корень frontend. SDK/host/device записываются при вы
 | flutter test --no-pub; flutter analyze --no-pub; dart format --output=none --set-exit-if-changed lib test — подготовленные зависимости | frontend; нужный SDK/Xcode/iPhone по сценарию | Acceptance criteria подтверждены реальным evidence | Не выполнялось | NOT RUN | Сейчас только планирование |
 | Сверка ручного IOS_REGRESSION device/backend harness с каждым критерием .18 и действующими API | frontend; нужный SDK/Xcode/iPhone по сценарию | Acceptance criteria подтверждены реальным evidence | Не выполнялось | NOT RUN | Сейчас только планирование |
 
-## Result
+## Result planning baseline
 
 2026-11-16: карточка подготовлена для переориентации на iOS. Реализация и её
 проверки не выполнялись. Проверки документов и независимый planning-review

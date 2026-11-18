@@ -12,6 +12,28 @@ requirements_revision: "ios-2026-11-16"
 
 # PLAN-FE-002: DictAI для iOS/iPhone
 
+## Итог доступной реализации — 2026-11-18
+
+.16 сохранена commit `8da7b55`/push origin/main. .17 review, owner `/root`
+после quota interruption implementer:5 новых joined tests и весь803 host suite
+PASS34s, analyze no issues, scoped format PASS. Full format имеет5 неизменённых
+baseline failures вне scope. .18/.19 blocked: signing0/team отсутствует, iPhone
+DDI/tunnel недоступны, runtime/operator/release inputs не подтверждены;
+account-deletion HTTP в backend отсутствует. Подготовлены opt-in harness и
+release checklist; hardware E2E/candidate/Store NOT RUN. Независимый final review
+`/root/final_regression_review` завершён: .17-01/.18-01/.19-01 reviewed/complete,
+actionable findings нет; .18/.19 blocked сохраняются. Новые5 tests/format
+повторены reviewer PASS, full803/analyze evidence прочитано отдельно.
+
+## Текущий handoff .17 — 2026-11-18
+
+.16 checks/review complete, commit `8da7b55` отправлен в origin/main. .17
+in_progress, sole writer `/root/batch_regression`, exact scope карточки;
+source .16 frozen. Reviewer `/root/cleanup_review_finish` получает только
+зарезервированные .17-01/.18-01/.19-01 reports. Coordinator готовит независимые
+read-only prerequisites/evidence .18/.19 и фиксирует external blockers; никакие
+signing/device/backend mutations или release не выполняются.
+
 ## Возобновление .16 — 2026-11-18
 
 .16 source frozen/review:262 targeted PASS, analyzer no issues, independent168
@@ -322,9 +344,9 @@ Owner unassigned относится к будущей реализации; plan
 | [TASK-FE-002.14](../tasks/TASK-FE-002.14.md) | Экспортировать документы и WAV через iOS Files/share sheet | review | TASK-FE-002.13 | /root/export_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.15](../tasks/TASK-FE-002.15.md) | Связать готовность результата с lifecycle и уведомлением внутри приложения | review | TASK-FE-002.14 | /root/notice_prep_finish | Exact paths в карточке |
 | [TASK-FE-002.16](../tasks/TASK-FE-002.16.md) | Завершить удаление, account isolation и cleanup iOS flow | review | TASK-FE-002.15 | /root/cleanup_prep_finish | Exact paths в карточке |
-| [TASK-FE-002.17](../tasks/TASK-FE-002.17.md) | Закрепить iOS batch-сценарий регрессионными проверками | draft | TASK-FE-002.16 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.18](../tasks/TASK-FE-002.18.md) | Подтвердить реальный iPhone E2E и platform readiness | draft | TASK-FE-002.17 | unassigned | Exact paths в карточке |
-| [TASK-FE-002.19](../tasks/TASK-FE-002.19.md) | Подготовить iOS candidate и требования TestFlight/App Store | draft | TASK-FE-002.18 | unassigned | Exact paths в карточке |
+| [TASK-FE-002.17](../tasks/TASK-FE-002.17.md) | Закрепить iOS batch-сценарий регрессионными проверками | review | TASK-FE-002.16 | /root | Exact paths в карточке |
+| [TASK-FE-002.18](../tasks/TASK-FE-002.18.md) | Подтвердить реальный iPhone E2E и platform readiness | blocked | TASK-FE-002.17 | /root | Exact paths в карточке |
+| [TASK-FE-002.19](../tasks/TASK-FE-002.19.md) | Подготовить iOS candidate и требования TestFlight/App Store | blocked | TASK-FE-002.18 | /root | Exact paths в карточке |
 
 ## Перенос PLAN-FE-001
 

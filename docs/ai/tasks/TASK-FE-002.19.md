@@ -2,18 +2,58 @@
 id: "TASK-FE-002.19"
 plan: "PLAN-FE-002"
 title: "Подготовить iOS candidate и требования TestFlight/App Store"
-status: "draft"
-owner: "unassigned"
+status: "blocked"
+owner: "/root"
 priority: "P1"
 delivery_stage: "ios"
 depends_on: ["TASK-FE-002.18"]
 scope: ["docs/testing/IOS_RELEASE.ru.md", "ios/Runner/PrivacyInfo.xcprivacy", "ios/Runner/Info.plist", "ios/Runner.xcodeproj/project.pbxproj", "docs/ai/tasks/TASK-FE-002.19.md"]
-planned_paths: ["docs/testing/IOS_RELEASE.ru.md", "ios/Runner/PrivacyInfo.xcprivacy", "ios/Runner/Info.plist", "ios/Runner.xcodeproj/project.pbxproj"]
+planned_paths: ["docs/testing/IOS_RELEASE.ru.md", "ios/Runner/PrivacyInfo.xcprivacy"]
 reuses_tasks: ["TASK-FE-001.41", "TASK-FE-001.42"]
 implementation_selected: true
 ---
 
 # TASK-FE-002.19: Подготовить iOS candidate и требования TestFlight/App Store
+
+## Текущий результат и blocker — 2026-11-18
+
+Пользователь поручил завершить доступный объём ранее выбранной очереди и push;
+owner `/root`. Подготовлен [release checklist](../../testing/IOS_RELEASE.ru.md)
+по read-only audit `/root/readiness_audit`; candidate не сформирован.
+
+**Blocked:** обязательный hardware/backend gate .18 не пройден, signing/team
+отсутствуют; не назначены проверенные privacy/support URLs, review access,
+release privacy answers/manifest allowed reasons и Store ownership. В backend
+`92ad6e4572a3b12a601ba3ab7e5cc385a21694ae` нет auth/gateway HTTP удаления аккаунта;
+DB DeleteUser helper, result deletion и logout его не заменяют. Это отдельный
+release blocker, без придуманного endpoint или новой backend задачи.
+
+До выполнения .18 и предоставления проверяемых release inputs native project,
+Info.plist и PrivacyInfo.xcprivacy не менялись; manifest не заполняется выдуманными
+reason codes. Не создавались сертификаты/profiles, signed archive и Store upload.
+Commit/push исходников разрешены текущим поручением, release отдельно не поручен.
+
+## Verification текущего prerequisite scope
+
+Cwd frontend `/Users/mxdnght/dictai-app`; macOS26.5.2 arm64/Xcode26.5;
+backend `/Users/mxdnght/dictai` изучен read-only.
+
+| Command / scenario | Actual | Status | Limitation |
+|---|---|---|---|
+| Source pubspec/Runner plist/project/locked SDK manifests review | version1.0.0+1, bundle com.dictai.app, iOS13; mic/audio background заданы, app privacy manifest отсутствует | PASS source inventory | Не Store validation |
+| `security find-identity -v -p codesigning`; project DEVELOPMENT_TEAM | 0 valid identities; team не назначен | PASS inventory | Signed archive blocked |
+| Current auth/gateway routers + deletion capability search | HTTP account deletion отсутствует; DB helper не endpoint | PASS source audit | Store release gap остаётся |
+| Locked plugin manifests + direct app metadata APIs audit | Required-reason/privacy inputs перечислены в IOS_RELEASE, фактические ответы не выдуманы | PASS inventory | Полный release privacy audit не завершён |
+| `flutter build ipa --release --no-pub`, archive/export/Store validation | Не выполнялись | NOT RUN | .18/signing/privacy inputs отсутствуют |
+| YAML/status/scope/links/full doc diff и independent .19-01 | Coordinator/reviewer PASS, .19-01 reviewed/complete, actionable findings нет | PASS | Только документы, blocker не снимается |
+
+## Result prerequisite scope
+
+Создан только IOS_RELEASE.ru.md и обновлена эта карточка. Документ отделяет
+source inventory, signed candidate, archive validation и Store публикацию;
+содержит точные недостающие inputs и ограничения. Native/code/deps/lock/permissions
+не менялись. .19 остаётся blocked, `accepted` не назначен; независимый [review документов .19-01](../reviews/REVIEW-FE-002.19-01.md)
+reviewed/complete, actionable findings нет; это не готовый candidate.
 
 ## Текущее поручение — 2026-11-17
 
@@ -60,7 +100,7 @@ owner и выбрать реализацию. Отсутствующие пут�
 Review организует координатор агентами; промежуточное review пользователя
 не требуется. Commit/push/merge/release отдельно не разрешены.
 
-## Verification
+## Verification planning baseline
 
 Cwd: корень frontend. SDK/host/device записываются при выполнении.
 
@@ -69,7 +109,7 @@ Cwd: корень frontend. SDK/host/device записываются при вы
 | flutter build ipa --release — только при доступных signing/team/config; иначе NOT RUN с blocker | frontend; нужный SDK/Xcode/iPhone по сценарию | Acceptance criteria подтверждены реальным evidence | Не выполнялось | NOT RUN | Сейчас только планирование |
 | Проверить archive/privacy/project diff и release checklist; локальная готовность, TestFlight validation и App Store approval различаются | frontend; нужный SDK/Xcode/iPhone по сценарию | Acceptance criteria подтверждены реальным evidence | Не выполнялось | NOT RUN | Сейчас только планирование |
 
-## Result
+## Result planning baseline
 
 2026-11-16: карточка подготовлена для переориентации на iOS. Реализация и её
 проверки не выполнялись. Проверки документов и независимый planning-review
